@@ -1,0 +1,109 @@
+<!-- ==========================================================
+ RK EVENTS ERP
+ bookings.html
+=========================================================== -->
+
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+
+            <h2 class="fw-bold mb-1">
+                Booking Management
+            </h2>
+
+            <p class="text-muted mb-0">
+                Manage all customer bookings
+            </p>
+
+        </div>
+
+        <button
+            class="btn btn-primary"
+            onclick="openBookingForm()">
+
+            <i class="bi bi-plus-circle me-2"></i>
+
+            New Booking
+
+        </button>
+
+    </div>
+
+    <div class="card shadow-sm border-0">
+
+        <div class="card-body">
+
+            <div class="row mb-3">
+
+                <div class="col-md-5">
+
+                    <input
+                        type="text"
+                        id="bookingSearch"
+                        class="form-control"
+                        placeholder="Search by Customer / Mobile / Booking No"
+                        onkeyup="searchBookings()">
+
+                </div>
+
+            </div>
+
+            <div class="table-responsive">
+
+                <table class="table table-hover align-middle">
+
+                    <thead class="table-light">
+
+                        <tr>
+
+                            <th style="width:120px;">Booking No</th>
+
+                            <th>Customer</th>
+
+                            <th>Mobile</th>
+
+                            <th>Event</th>
+
+                            <th>Date</th>
+
+                            <th>Budget</th>
+
+                            <th>Advance</th>
+
+                            <th>Balance</th>
+
+                            <th>Status</th>
+
+                            <th style="width:170px;">Action</th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody id="bookingTable">
+
+                        <tr>
+
+                            <td colspan="10" class="text-center text-muted py-4">
+
+                                No Bookings Available
+
+                            </td>
+
+                        </tr>
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<?!= include("bookingForm"); ?>

@@ -1,0 +1,713 @@
+<!-- ==========================================================
+ RK EVENTS ERP
+ script.html
+=========================================================== -->
+
+<script>
+
+/******************************************************
+ * LOADER
+ ******************************************************/
+function showLoader(){
+
+    const loader=document.getElementById("loader");
+
+    if(loader){
+
+        loader.style.display="flex";
+
+    }
+
+}
+
+function hideLoader(){
+
+    const loader=document.getElementById("loader");
+
+    if(loader){
+
+        loader.style.display="none";
+
+    }
+
+}
+
+/******************************************************
+ * TOAST
+ ******************************************************/
+function showToast(message,type="success"){
+
+    const container=
+        document.getElementById("toastContainer");
+
+    if(!container) return;
+
+    const toast=document.createElement("div");
+
+    toast.className=
+        "toast align-items-center text-bg-"+type+
+        " border-0";
+
+    toast.innerHTML=`
+    <div class="d-flex">
+
+        <div class="toast-body">
+
+            ${message}
+
+        </div>
+
+        <button
+            type="button"
+            class="btn-close btn-close-white me-2 m-auto"
+            data-bs-dismiss="toast">
+        </button>
+
+    </div>
+    `;
+
+    container.appendChild(toast);
+
+    const bsToast=
+        new bootstrap.Toast(toast,{
+            delay:3000
+        });
+
+    bsToast.show();
+
+    toast.addEventListener(
+        "hidden.bs.toast",
+        ()=>{
+
+            toast.remove();
+
+        });
+
+}
+
+/******************************************************
+ * GOOGLE APPS SCRIPT
+ ******************************************************/
+function callServer(functionName,...params){
+
+    return new Promise((resolve,reject)=>{
+
+        showLoader();
+
+        google.script.run
+
+        .withSuccessHandler(result=>{
+
+            hideLoader();
+
+            resolve(result);
+
+        })
+
+        .withFailureHandler(error=>{
+
+            hideLoader();
+
+            console.error(error);
+
+            showToast(
+                error.message,
+                "danger"
+            );
+
+            reject(error);
+
+        })
+
+        [functionName](...params);
+
+    });
+
+}
+
+/******************************************************
+ * UTILITY
+ ******************************************************/
+function setText(id,value){
+
+    const element=
+        document.getElementById(id);
+
+    if(element){
+
+        element.textContent=value;
+
+    }
+
+}
+
+/******************************************************
+ * LOAD DASHBOARD
+ ******************************************************/
+async function loadDashboard(){
+
+    try{
+
+        const result=
+            await callServer(
+                "getDashboardSummary"
+            );
+
+        if(result){
+
+            setText(
+                "totalCustomers",
+                result.customers
+            );
+
+            setText(
+                "totalBookings",
+                result.bookings
+            );
+
+            setText(
+                "totalPackages",
+                result.packages
+            );
+
+            setText(
+                "totalEmployees",
+                result.employees
+            );
+
+            setText(
+                "totalExpenses",
+                result.expenses
+            );
+
+            setText(
+                "companyName",
+                result.company
+            );
+
+        }
+
+    }
+    catch(e){
+
+        console.error(e);
+
+    }
+
+}
+
+/******************************************************
+ * USER SESSION
+ ******************************************************/
+async function loadSession(){
+
+    try{
+
+        const session=
+            await callServer(
+                "getSession"
+            );
+
+        if(session.success){
+
+            setText(
+                "loggedUser",
+                session.data.name
+            );
+
+        }
+
+    }
+    catch(e){
+
+        console.error(e);
+
+    }
+
+}
+
+/******************************************************
+ * PAGE NAVIGATION
+ ******************************************************/
+function showPage(pageId){
+
+    document
+        .querySelectorAll(".app-page")
+        .forEach(function(page){
+
+            page.style.display="none";
+
+        });
+
+    const page=
+        document.getElementById(pageId);
+
+    if(page){
+
+        page.style.display="block";
+
+    }
+
+}
+
+/******************************************************
+ * DASHBOARD
+ ******************************************************/
+function showDashboard(){
+
+    showPage("dashboardPage");
+
+    loadDashboard();
+
+}
+
+/******************************************************
+ * BOOKINGS
+ ******************************************************/
+function showBookings(){
+
+    showPage("bookingsPage");
+
+    loadBookings();
+
+}
+/******************************************************
+ * BOOKING MODAL
+ ******************************************************/
+
+let bookingModal = null;
+
+function openBookingForm() {
+
+    const modalElement =
+        document.getElementById("bookingModal");
+
+    bookingModal =
+        bootstrap.Modal.getOrCreateInstance(modalElement);
+
+    clearBookingForm();
+
+    bookingModal.show();
+
+}
+
+function closeBookingForm() {
+
+    if (bookingModal) {
+
+        bookingModal.hide();
+
+    }
+
+}
+
+/******************************************************
+ * CLEAR BOOKING FORM
+ ******************************************************/
+
+function clearBookingForm() {
+
+    [
+        "customerName",
+        "mobile",
+        "alternateMobile",
+        "eventDate",
+        "eventTime",
+        "venue",
+        "requirement",
+        "budget",
+        "googleMap",
+        "advanceAmount",
+        "balanceAmount",
+        "remarks"
+    ].forEach(function(id){
+
+        const el = document.getElementById(id);
+
+        if(!el){
+            console.log(id + " NOT FOUND");
+        }else{
+            el.value = "";
+        }
+
+    });
+
+    [
+        "eventType",
+        "paymentStatus",
+        "bookingStatus"
+    ].forEach(function(id){
+
+        const el = document.getElementById(id);
+
+        if(!el){
+            console.log(id + " NOT FOUND");
+        }else{
+            el.selectedIndex = 0;
+        }
+
+    });
+
+}
+/******************************************************
+ * CALCULATE BALANCE
+ ******************************************************/
+
+function calculateBalance() {
+
+    const budget =
+        Number(document.getElementById("budget").value) || 0;
+
+    const advance =
+        Number(document.getElementById("advanceAmount").value) || 0;
+
+    document.getElementById("balanceAmount").value =
+        budget - advance;
+
+}
+
+/******************************************************
+ * SAVE BOOKING
+ ******************************************************/
+
+async function saveBooking() {
+
+    const booking = {
+
+        customerName:
+            document.getElementById("customerName").value.trim(),
+
+        mobile:
+            document.getElementById("mobile").value.trim(),
+
+        alternateMobile:
+            document.getElementById("alternateMobile").value.trim(),
+
+        eventType:
+            document.getElementById("eventType").value,
+
+        eventDate:
+            document.getElementById("eventDate").value,
+
+        eventTime:
+            document.getElementById("eventTime").value,
+
+        venue:
+            document.getElementById("venue").value.trim(),
+
+        requirement:
+            document.getElementById("requirement").value.trim(),
+
+        budget:
+            document.getElementById("budget").value,
+
+        googleMap:
+            document.getElementById("googleMap").value.trim(),
+
+        advanceAmount:
+            document.getElementById("advanceAmount").value,
+
+        balanceAmount:
+            document.getElementById("balanceAmount").value,
+
+        paymentStatus:
+            document.getElementById("paymentStatus").value,
+
+        bookingStatus:
+            document.getElementById("bookingStatus").value,
+
+        remarks:
+            document.getElementById("remarks")
+                ? document.getElementById("remarks").value
+                : ""
+
+    };
+
+    /* Mandatory */
+
+    if (!booking.customerName) {
+
+        showToast(
+            "Customer Name is required",
+            "danger"
+        );
+
+        return;
+
+    }
+
+    if (!booking.mobile) {
+
+        showToast(
+            "Mobile Number is required",
+            "danger"
+        );
+
+        return;
+
+    }
+
+    if (!booking.eventType) {
+
+        showToast(
+            "Event Type is required",
+            "danger"
+        );
+
+        return;
+
+    }
+
+    if (!booking.eventDate) {
+
+        showToast(
+            "Event Date is required",
+            "danger"
+        );
+
+        return;
+
+    }
+
+    try {
+
+        const result =
+            await callServer(
+                "saveBooking",
+                booking
+            );
+
+        if (result.success) {
+
+            showToast(result.message);
+
+            bookingModal.hide();
+
+            loadBookings();
+
+        } else {
+
+            showToast(
+                result.message,
+                "danger"
+            );
+
+        }
+
+    }
+    catch (e) {
+
+        console.error(e);
+
+    }
+
+}
+/******************************************************
+ * LOAD BOOKINGS
+ ******************************************************/
+
+async function loadBookings() {
+
+    try {
+
+        const result =
+            await callServer("getBookingList");
+
+        if (!result.success) {
+
+            showToast(result.message, "danger");
+
+            return;
+
+        }
+
+        renderBookingTable(result.data);
+
+    }
+    catch (e) {
+
+        console.error(e);
+
+    }
+
+}
+
+/******************************************************
+ * RENDER BOOKING TABLE
+ ******************************************************/
+
+function renderBookingTable(bookings) {
+
+    const tbody =
+        document.getElementById("bookingTable");
+
+    if (!tbody) return;
+
+    if (!bookings || bookings.length === 0) {
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="10"
+                    class="text-center text-muted">
+                    No Bookings Available
+                </td>
+            </tr>
+        `;
+
+        return;
+
+    }
+
+    let html = "";
+
+    bookings.forEach(function (item) {
+
+        html += `
+
+        <tr>
+
+            <td>${item.BookingNo || ""}</td>
+
+            <td>${item.CustomerName || ""}</td>
+
+            <td>${item.Mobile || ""}</td>
+
+            <td>${item.EventType || ""}</td>
+
+            <td>${item.EventDate || ""}</td>
+
+            <td>₹ ${item.Budget || 0}</td>
+
+            <td>₹ ${item.AdvanceAmount || 0}</td>
+
+            <td>₹ ${item.BalanceAmount || 0}</td>
+
+            <td>${item.BookingStatus || ""}</td>
+
+            <td>
+
+                <button
+                    class="btn btn-sm btn-primary"
+                    onclick="editBooking('${item.BookingID}')">
+
+                    <i class="bi bi-pencil"></i>
+
+                </button>
+
+                <button
+                    class="btn btn-sm btn-danger ms-1"
+                    onclick="deleteBooking('${item.BookingID}')">
+
+                    <i class="bi bi-trash"></i>
+
+                </button>
+
+            </td>
+
+        </tr>
+
+        `;
+
+    });
+
+    tbody.innerHTML = html;
+
+}
+
+/******************************************************
+ * SEARCH BOOKINGS
+ ******************************************************/
+
+function searchBookings() {
+
+    const keyword =
+        document
+            .getElementById("bookingSearch")
+            .value
+            .toLowerCase();
+
+    document
+        .querySelectorAll("#bookingTable tr")
+        .forEach(function (row) {
+
+            row.style.display =
+                row.innerText
+                    .toLowerCase()
+                    .includes(keyword)
+                    ? ""
+                    : "none";
+
+        });
+
+}
+
+/******************************************************
+ * EDIT BOOKING
+ ******************************************************/
+
+function editBooking(id) {
+
+    showToast(
+        "Edit Booking - Coming Soon",
+        "warning"
+    );
+
+}
+
+/******************************************************
+ * DELETE BOOKING
+ ******************************************************/
+
+function deleteBooking(id) {
+
+    if (!confirm("Delete this booking?")) {
+
+        return;
+
+    }
+
+    showToast(
+        "Delete Booking - Coming Soon",
+        "warning"
+    );
+
+}
+
+/******************************************************
+ * SIDEBAR ACTIVE
+ ******************************************************/
+
+document.addEventListener("click", function (e) {
+
+    const menu =
+        e.target.closest(".menu-link");
+
+    if (!menu) return;
+
+    document
+        .querySelectorAll(".menu-link")
+        .forEach(function (link) {
+
+            link.classList.remove("active");
+
+        });
+
+    menu.classList.add("active");
+
+});
+
+/******************************************************
+ * APPLICATION START
+ ******************************************************/
+
+window.onload = async function () {
+
+    await loadSession();
+
+    await loadDashboard();
+
+    showDashboard();
+
+};
+
+</script>

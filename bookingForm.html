@@ -1,0 +1,337 @@
+<!-- ==========================================================
+ RK EVENTS ERP
+ bookingForm.html
+=========================================================== -->
+
+<div class="modal fade"
+     id="bookingModal"
+     tabindex="-1">
+
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h4 class="modal-title">
+                    <i class="bi bi-calendar-plus me-2"></i>
+                    New Booking
+                </h4>
+
+                <button
+                    class="btn-close"
+                    data-bs-dismiss="modal">
+                </button>
+
+            </div>
+
+            <div class="modal-body">
+
+                <!-- Customer Details -->
+
+                <div class="card mb-3">
+
+                    <div class="card-header bg-primary text-white">
+                        Customer Details
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Mobile Number *
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="mobile"
+                                    class="form-control">
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Customer Name *
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="customerName"
+                                    class="form-control">
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Alternate Mobile
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="alternateMobile"
+                                    class="form-control">
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- Event Details -->
+
+                <div class="card mb-3">
+
+                    <div class="card-header bg-success text-white">
+                        Event Details
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Event Type *
+                                </label>
+
+                                <select
+                                    id="eventType"
+                                    class="form-select">
+
+                                    <option>Wedding</option>
+                                    <option>Reception</option>
+                                    <option>Engagement</option>
+                                    <option>Baby Shower</option>
+                                    <option>Birthday</option>
+                                    <option>Puberty Function</option>
+                                    <option>Corporate Event</option>
+                                    <option>House Warming</option>
+                                    <option>Outdoor Shoot</option>
+                                    <option>Other</option>
+
+                                </select>
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Event Date *
+                                </label>
+
+                                <input
+                                    type="date"
+                                    id="eventDate"
+                                    class="form-control">
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Event Time
+                                </label>
+
+                                <input
+                                    type="time"
+                                    id="eventTime"
+                                    class="form-control">
+
+                            </div>
+
+                            <div class="col-md-6">
+
+                                <label class="form-label">
+                                    Venue
+                                </label>
+
+                                <textarea
+                                    id="venue"
+                                    rows="2"
+                                    class="form-control"></textarea>
+
+                            </div>
+
+                            <div class="col-md-6">
+
+                                <label class="form-label">
+                                    Requirement
+                                </label>
+
+                                <textarea
+                                    id="requirement"
+                                    rows="2"
+                                    class="form-control"
+                                    placeholder="Photography, Drone, LED Wall..."></textarea>
+
+                            </div>
+
+                            <div class="col-md-6">
+
+                                <label class="form-label">
+                                    Budget
+                                </label>
+
+                                <input
+                                    type="number"
+                                    id="budget"
+                                    class="form-control"
+                                    onkeyup="calculateBalance()"
+                                    onchange="calculateBalance()">
+
+                            </div>
+
+                            <div class="col-md-6">
+
+                                <label class="form-label">
+                                    Google Map Link
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="googleMap"
+                                    class="form-control">
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- Payment Details -->
+
+                <div class="card">
+
+                    <div class="card-header bg-warning">
+                        Booking Details
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Advance Amount
+                                </label>
+
+                                <input
+                                    type="number"
+                                    id="advanceAmount"
+                                    class="form-control"
+                                    onkeyup="calculateBalance()"
+                                    onchange="calculateBalance()">
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Balance Amount
+                                </label>
+
+                                <input
+                                    type="number"
+                                    id="balanceAmount"
+                                    class="form-control"
+                                    readonly>
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Payment Status
+                                </label>
+
+                                <select
+                                    id="paymentStatus"
+                                    class="form-select">
+
+                                    <option>Pending</option>
+                                    <option>Partial</option>
+                                    <option>Paid</option>
+
+                                </select>
+
+                            </div>
+
+                            <div class="col-md-6">
+
+                                <label class="form-label">
+                                    Booking Status
+                                </label>
+
+                                <select
+                                    id="bookingStatus"
+                                    class="form-select">
+
+                                    <option>New</option>
+                                    <option>Confirmed</option>
+                                    <option>Shoot Completed</option>
+                                    <option>Editing</option>
+                                    <option>Delivered</option>
+
+                                </select>
+
+                            </div>
+
+                            <div class="col-md-6">
+
+                                <label class="form-label">
+                                    Remarks
+                                </label>
+
+                                <textarea
+                                    id="remarks"
+                                    rows="2"
+                                    class="form-control"></textarea>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+
+                <button
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal">
+
+                    Cancel
+
+                </button>
+
+                <button
+                    class="btn btn-primary"
+                    onclick="saveBooking()">
+
+                    <i class="bi bi-check-circle me-2"></i>
+
+                    Save Booking
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
