@@ -238,11 +238,20 @@ function initializeSheets(){
 
 function getDashboardSummary(){
 
+  const bookings = getAll(APP.SHEETS.BOOKINGS);
+  
+  const uniqueCustomerIds = {};
+  bookings.forEach(function(booking) {
+    if (booking.CustomerID) {
+      uniqueCustomerIds[booking.CustomerID] = true;
+    }
+  });
+  
+  const customerCount = Object.keys(uniqueCustomerIds).length;
+
   return{
 
-    customers :
-
-      getCount(APP.SHEETS.CUSTOMERS),
+    customers : customerCount,
 
     bookings :
 
@@ -330,11 +339,11 @@ function searchCustomerByMobile(mobile) {
 
     Logger.log("Customer details: " + JSON.stringify(customer));
 
-    Logger.log("Fetching bookings for mobile: " + digitsOnly);
+    Logger.log("Fetching bookings for CustomerID: " + customer.CustomerID);
     const bookings = filterRecords(
       APP.SHEETS.BOOKINGS,
       function(b) {
-        return String(b.Mobile).trim() == String(digitsOnly).trim();
+        return String(b.CustomerID).trim() == String(customer.CustomerID).trim();
       }
     );
 
@@ -347,15 +356,18 @@ function searchCustomerByMobile(mobile) {
     
     if (totalBookings > 0) {
       bookings.sort(function(a, b) {
-        return new Date(b.EventDate) - new Date(a.EventDate);
+        const dateA = a.EventDate ? new Date(a.EventDate) : new Date(0);
+        const dateB = b.EventDate ? new Date(b.EventDate) : new Date(0);
+        return dateB - dateA;
       });
       
       lastEventDate = bookings[0].EventDate;
       
-      eventTypes = bookings.map(function(b) {
-        return b.EventType;
-      }).filter(function(value, index, self) {
-        return self.indexOf(value) === index;
+      eventTypes = [];
+      bookings.forEach(function(b) {
+        if (b.EventType && eventTypes.indexOf(b.EventType) === -1) {
+          eventTypes.push(b.EventType);
+        }
       });
     }
 
@@ -425,6 +437,17 @@ function createCustomer(data){
 
   if(existing){
 
+      update(
+        APP.SHEETS.CUSTOMERS,
+        "CustomerID",
+        existing.CustomerID,
+        {
+          CustomerName: data.customerName,
+          Mobile: data.mobile,
+          AlternateMobile: data.alternateMobile || ""
+        }
+      );
+
       return existing.CustomerID;
 
   }
@@ -472,8 +495,18 @@ function generateBookingNumber(){
   const bookings =
       getAll(APP.SHEETS.BOOKINGS);
 
-  const nextNo =
-      bookings.length + 1;
+  let maxNo = 0;
+  
+  bookings.forEach(function(booking) {
+    if (booking.BookingNo && booking.BookingNo.startsWith("RKB")) {
+      const numPart = parseInt(booking.BookingNo.substring(3));
+      if (numPart > maxNo) {
+        maxNo = numPart;
+      }
+    }
+  });
+  
+  const nextNo = maxNo + 1;
 
   return "RKB" +
 
@@ -494,6 +527,11 @@ function saveBooking(data){
 
     if(!data.mobile)
       return failure("Mobile Number is required.");
+
+    const mobileDigits = String(data.mobile).replace(/[^0-9]/g, '');
+    
+    if(mobileDigits.length !== 10)
+      return failure("Mobile Number must be exactly 10 digits.");
 
     if(!data.eventType)
       return failure("Event Type is required.");

@@ -788,21 +788,19 @@ function populateCustomerData(customer) {
     console.log("=== POPULATE CUSTOMER DATA ===");
     console.log("Customer object:", customer);
 
-    const nameField = document.getElementById("customerName");
-    const altMobileField = document.getElementById("alternateMobile");
+    const fields = {
+        customerName: customer.CustomerName || "",
+        alternateMobile: customer.AlternateMobile || ""
+    };
 
-    if (nameField) {
-        nameField.value = customer.CustomerName || "";
-        console.log("Set customerName to:", customer.CustomerName);
-    } else {
-        console.error("customerName field not found!");
-    }
-
-    if (altMobileField) {
-        altMobileField.value = customer.AlternateMobile || "";
-        console.log("Set alternateMobile to:", customer.AlternateMobile);
-    } else {
-        console.error("alternateMobile field not found!");
+    for (var fieldId in fields) {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.value = fields[fieldId];
+            console.log("Set " + fieldId + " to:", fields[fieldId]);
+        } else {
+            console.error(fieldId + " field not found!");
+        }
     }
 
 }
