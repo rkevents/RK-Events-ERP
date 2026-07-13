@@ -361,22 +361,30 @@ function searchCustomerByMobile(mobile) {
 
     Logger.log("Returning EXISTING customer with history");
 
+    const formatDateValue = function(value) {
+      if (!value) return "";
+      if (value instanceof Date) {
+        return Utilities.formatDate(value, APP.DATE.TIMEZONE, APP.DATE.FORMAT);
+      }
+      return String(value);
+    };
+
     return success("Existing Customer", {
       exists: true,
       isNew: false,
       customer: {
-        CustomerID: customer.CustomerID,
-        CustomerName: customer.CustomerName,
-        Mobile: customer.Mobile,
+        CustomerID: customer.CustomerID || "",
+        CustomerName: customer.CustomerName || "",
+        Mobile: customer.Mobile || "",
         AlternateMobile: customer.AlternateMobile || "",
         Email: customer.Email || "",
         Address: customer.Address || "",
-        CreatedOn: customer.CreatedOn
+        CreatedOn: formatDateValue(customer.CreatedOn)
       },
       history: {
-        customerSince: customer.CreatedOn,
+        customerSince: formatDateValue(customer.CreatedOn),
         totalBookings: totalBookings,
-        lastEventDate: lastEventDate,
+        lastEventDate: formatDateValue(lastEventDate),
         eventTypes: eventTypes.join(", ")
       }
     });
