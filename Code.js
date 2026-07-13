@@ -160,7 +160,72 @@ const SHEET_HEADERS = {
  * WEB APP
  ***************************************************************/
 
-function doGet(){
+/***************************************************************
+ * CUSTOM MENU
+ ***************************************************************/
+
+function onOpen() {
+  
+  const ui = SpreadsheetApp.getUi();
+  
+  ui.createMenu('🔧 RK Events Admin')
+    .addItem('🗑️ Clear All Bookings & Customers', 'runCleanup')
+    .addSeparator()
+    .addItem('ℹ️ About', 'showAbout')
+    .addToUi();
+    
+}
+
+function runCleanup() {
+  
+  const ui = SpreadsheetApp.getUi();
+  
+  const response = ui.alert(
+    'Clear All Data',
+    'This will delete ALL bookings and customers. Are you sure?',
+    ui.ButtonSet.YES_NO
+  );
+  
+  if (response == ui.Button.YES) {
+    
+    const result = clearAllBookingsAndCustomers();
+    
+    if (result.success) {
+      ui.alert('✅ Success', result.message, ui.ButtonSet.OK);
+    } else {
+      ui.alert('❌ Error', result.message, ui.ButtonSet.OK);
+    }
+    
+  }
+  
+}
+
+function showAbout() {
+  
+  const ui = SpreadsheetApp.getUi();
+  ui.alert(
+    'RK Events ERP',
+    'Version: 2.0\nEvent Booking Management System',
+    ui.ButtonSet.OK
+  );
+  
+}
+
+/***************************************************************
+ * WEB APP ENTRY
+ ***************************************************************/
+
+function doGet(e){
+
+  if (e && e.parameter && e.parameter.action === 'cleanup') {
+    
+    const result = clearAllBookingsAndCustomers();
+    
+    return ContentService
+      .createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  }
 
   initializeApplication();
 
@@ -354,33 +419,32 @@ function searchCustomerByMobile(mobile) {
       });
     }
 
+    Logger.log("=== VERSION: 2024-07-13-23:32 ===");
     Logger.log("Customer details: " + JSON.stringify(customer));
 
     Logger.log("Fetching bookings for CustomerID: " + customer.CustomerID);
-    Logger.log("CustomerID type: " + typeof customer.CustomerID);
     
     const allBookings = getAll(APP.SHEETS.BOOKINGS);
     Logger.log("Total bookings in sheet: " + allBookings.length);
     
-    allBookings.forEach(function(b, idx) {
-      Logger.log("Booking " + idx + " - CustomerID: '" + b.CustomerID + "' (type: " + typeof b.CustomerID + "), Mobile: " + b.Mobile);
-    });
+    const bookings = [];
+    const customerCustomerId = String(customer.CustomerID || "").trim().substring(0, 9);
     
-    const bookings = filterRecords(
-      APP.SHEETS.BOOKINGS,
-      function(b) {
-        const bookingCustomerId = String(b.CustomerID || "").trim();
-        const customerCustomerId = String(customer.CustomerID || "").trim();
-        
-        const exactMatch = bookingCustomerId === customerCustomerId;
-        const startsWithMatch = bookingCustomerId.indexOf(customerCustomerId) === 0;
-        
-        const match = exactMatch || startsWithMatch;
-        
-        Logger.log("Comparing '" + bookingCustomerId + "' with '" + customerCustomerId + "' = " + match);
-        return match;
+    Logger.log("Looking for CustomerID starting with: '" + customerCustomerId + "'");
+    
+    allBookings.forEach(function(b, idx) {
+      const bookingCustomerId = String(b.CustomerID || "").trim();
+      const cleanBookingId = bookingCustomerId.substring(0, 9);
+      
+      Logger.log("Booking " + idx + ": '" + bookingCustomerId + "' -> cleaned: '" + cleanBookingId + "'");
+      
+      if (cleanBookingId === customerCustomerId) {
+        Logger.log("  -> MATCH! Adding to results");
+        bookings.push(b);
+      } else {
+        Logger.log("  -> no match");
       }
-    );
+    });
 
     Logger.log("Bookings found: " + bookings.length);
 
@@ -932,4 +996,54 @@ function updateBooking(data) {
 
   }
 
+}
+
+/*****************************************************************
+ * ADMIN UTILITY - CLEAR ALL DATA
+ *****************************************************************/
+
+function clearAllBookingsAndCustomers() {
+  
+  try {
+    
+    Logger.log("Starting data cleanup...");
+    
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    
+    const bookingsSheet = ss.getSheetByName(APP.SHEETS.BOOKINGS);
+    const customersSheet = ss.getSheetByName(APP.SHEETS.CUSTOMERS);
+    
+    if (bookingsSheet) {
+      const lastRow = bookingsSheet.getLastRow();
+      if (lastRow > 1) {
+        bookingsSheet.deleteRows(2, lastRow - 1);
+        Logger.log("Cleared " + (lastRow - 1) + " bookings");
+      }
+    }
+    
+    if (customersSheet) {
+      const lastRow = customersSheet.getLastRow();
+      if (lastRow > 1) {
+        customersSheet.deleteRows(2, lastRow - 1);
+        Logger.log("Cleared " + (lastRow - 1) + " customers");
+      }
+    }
+    
+    Logger.log("Data cleanup completed!");
+    
+    return {
+      success: true,
+      message: "All bookings and customers cleared successfully"
+    };
+    
+  } catch (e) {
+    
+    Logger.log("Error during cleanup: " + e.message);
+    return {
+      success: false,
+      message: "Error: " + e.message
+    };
+    
+  }
+  
 }
