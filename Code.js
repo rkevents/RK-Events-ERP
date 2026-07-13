@@ -240,14 +240,31 @@ function getDashboardSummary(){
 
   const bookings = getAll(APP.SHEETS.BOOKINGS);
   
+  Logger.log("getDashboardSummary - Total bookings: " + bookings.length);
+  
   const uniqueCustomerIds = {};
   bookings.forEach(function(booking) {
+    Logger.log("Booking CustomerID: '" + booking.CustomerID + "' (type: " + typeof booking.CustomerID + ")");
     if (booking.CustomerID) {
-      uniqueCustomerIds[booking.CustomerID] = true;
+      let rawId = String(booking.CustomerID).trim();
+      
+      let cleanId = rawId;
+      if (rawId.startsWith("RKCO") && rawId.length > 9) {
+        cleanId = rawId.substring(0, 9);
+      } else if (rawId.startsWith("CUS")) {
+        cleanId = rawId;
+      }
+      
+      Logger.log("Cleaned CustomerID: '" + cleanId + "' from '" + rawId + "'");
+      uniqueCustomerIds[cleanId] = true;
     }
   });
   
+  Logger.log("Unique CustomerIDs: " + JSON.stringify(Object.keys(uniqueCustomerIds)));
+  
   const customerCount = Object.keys(uniqueCustomerIds).length;
+  
+  Logger.log("Customer count: " + customerCount);
 
   return{
 
@@ -340,10 +357,28 @@ function searchCustomerByMobile(mobile) {
     Logger.log("Customer details: " + JSON.stringify(customer));
 
     Logger.log("Fetching bookings for CustomerID: " + customer.CustomerID);
+    Logger.log("CustomerID type: " + typeof customer.CustomerID);
+    
+    const allBookings = getAll(APP.SHEETS.BOOKINGS);
+    Logger.log("Total bookings in sheet: " + allBookings.length);
+    
+    allBookings.forEach(function(b, idx) {
+      Logger.log("Booking " + idx + " - CustomerID: '" + b.CustomerID + "' (type: " + typeof b.CustomerID + "), Mobile: " + b.Mobile);
+    });
+    
     const bookings = filterRecords(
       APP.SHEETS.BOOKINGS,
       function(b) {
-        return String(b.CustomerID).trim() == String(customer.CustomerID).trim();
+        const bookingCustomerId = String(b.CustomerID || "").trim();
+        const customerCustomerId = String(customer.CustomerID || "").trim();
+        
+        const exactMatch = bookingCustomerId === customerCustomerId;
+        const startsWithMatch = bookingCustomerId.indexOf(customerCustomerId) === 0;
+        
+        const match = exactMatch || startsWithMatch;
+        
+        Logger.log("Comparing '" + bookingCustomerId + "' with '" + customerCustomerId + "' = " + match);
+        return match;
       }
     );
 
