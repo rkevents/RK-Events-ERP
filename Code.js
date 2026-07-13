@@ -506,19 +506,88 @@ function searchCustomerByMobile(mobile) {
 /**
  * Generate Customer ID
  */
+/*****************************************************************
+ * ID GENERATION - SEQUENTIAL FORMAT
+ *****************************************************************/
+
+/**
+ * Generate Sequential Customer ID
+ * Format: CUS00001, CUS00002, etc.
+ * Always reads current max ID from sheet
+ */
 function generateCustomerId(){
 
-  return "CUS" +
+  const customers = getAll(APP.SHEETS.CUSTOMERS);
+  
+  let maxNo = 0;
+  
+  customers.forEach(function(customer) {
+    if (customer.CustomerID && customer.CustomerID.startsWith("CUS")) {
+      const numPart = parseInt(customer.CustomerID.substring(3));
+      if (!isNaN(numPart) && numPart > maxNo) {
+        maxNo = numPart;
+      }
+    }
+  });
+  
+  const nextNo = maxNo + 1;
 
-    Utilities.formatDate(
+  return "CUS" + String(nextNo).padStart(5, "0");
 
-      new Date(),
+}
 
-      Session.getScriptTimeZone(),
+/**
+ * Generate Sequential Booking ID
+ * Format: BK000001, BK000002, etc.
+ * Always reads current max ID from sheet
+ */
+function generateBookingId(){
 
-      "yyyyMMddHHmmss"
+  const bookings = getAll(APP.SHEETS.BOOKINGS);
+  
+  let maxNo = 0;
+  
+  bookings.forEach(function(booking) {
+    if (booking.BookingID && booking.BookingID.startsWith("BK")) {
+      const numPart = parseInt(booking.BookingID.substring(2));
+      if (!isNaN(numPart) && numPart > maxNo) {
+        maxNo = numPart;
+      }
+    }
+  });
+  
+  const nextNo = maxNo + 1;
 
-    );
+  return "BK" + String(nextNo).padStart(6, "0");
+
+}
+
+/**
+ * Generate Sequential Booking Number
+ * Format: RKB00001, RKB00002, etc.
+ * Always reads current max number from sheet
+ */
+function generateBookingNumber(){
+
+  const bookings =
+      getAll(APP.SHEETS.BOOKINGS);
+
+  let maxNo = 0;
+  
+  bookings.forEach(function(booking) {
+    if (booking.BookingNo && booking.BookingNo.startsWith("RKB")) {
+      const numPart = parseInt(booking.BookingNo.substring(3));
+      if (!isNaN(numPart) && numPart > maxNo) {
+        maxNo = numPart;
+      }
+    }
+  });
+  
+  const nextNo = maxNo + 1;
+
+  return "RKB" +
+
+      String(nextNo).padStart(5,"0");
 
 }
 
@@ -593,34 +662,6 @@ function createCustomer(data){
 }
 
 /*****************************************************************
- * BOOKING NUMBER
- *****************************************************************/
-
-function generateBookingNumber(){
-
-  const bookings =
-      getAll(APP.SHEETS.BOOKINGS);
-
-  let maxNo = 0;
-  
-  bookings.forEach(function(booking) {
-    if (booking.BookingNo && booking.BookingNo.startsWith("RKB")) {
-      const numPart = parseInt(booking.BookingNo.substring(3));
-      if (numPart > maxNo) {
-        maxNo = numPart;
-      }
-    }
-  });
-  
-  const nextNo = maxNo + 1;
-
-  return "RKB" +
-
-      String(nextNo).padStart(5,"0");
-
-}
-
-/*****************************************************************
  * SAVE BOOKING
  *****************************************************************/
 
@@ -651,7 +692,7 @@ function saveBooking(data){
       createCustomer(data);
 
     const bookingId =
-      Utilities.getUuid();
+      generateBookingId();
 
     const bookingNo =
       generateBookingNumber();
@@ -1216,6 +1257,129 @@ function repairDatabase() {
   } catch (e) {
     
     Logger.log("ERROR during repair: " + e.message);
+    Logger.log("Stack trace: " + e.stack);
+    
+    return {
+      success: false,
+      error: e.message
+    };
+    
+  }
+  
+}
+
+/*****************************************************************
+ * ADMIN UTILITY - MIGRATE TO SEQUENTIAL IDS
+ *****************************************************************/
+
+/**
+ * Migrate existing data from timestamp/UUID IDs to sequential IDs
+ * Converts CustomerID and BookingID to new format
+ * Maintains all referential integrity
+ * @returns {Object} Migration report
+ */
+function migrateToSequentialIds() {
+  
+  try {
+    
+    Logger.log("=== ID MIGRATION STARTED ===");
+    Logger.log("Timestamp: " + new Date().toISOString());
+    
+    const customers = getAll(APP.SHEETS.CUSTOMERS);
+    const bookings = getAll(APP.SHEETS.BOOKINGS);
+    
+    Logger.log("Found " + customers.length + " customers");
+    Logger.log("Found " + bookings.length + " bookings");
+    
+    const customerIdMap = {};
+    
+    let customersMigrated = 0;
+    let customerIdCounter = 1;
+    
+    customers.forEach(function(customer) {
+      const oldCustomerId = customer.CustomerID;
+      const newCustomerId = "CUS" + String(customerIdCounter).padStart(5, "0");
+      
+      customerIdMap[oldCustomerId] = newCustomerId;
+      
+      update(
+        APP.SHEETS.CUSTOMERS,
+        "CustomerID",
+        oldCustomerId,
+        {
+          CustomerID: newCustomerId
+        }
+      );
+      
+      Logger.log("Migrated Customer: " + oldCustomerId + " -> " + newCustomerId);
+      
+      customerIdCounter++;
+      customersMigrated++;
+    });
+    
+    Logger.log("Customer migration complete: " + customersMigrated + " customers");
+    
+    let bookingsMigrated = 0;
+    let bookingIdCounter = 1;
+    let bookingNoCounter = 1;
+    
+    bookings.forEach(function(booking) {
+      const oldBookingId = booking.BookingID;
+      const oldCustomerId = booking.CustomerID;
+      
+      const newBookingId = "BK" + String(bookingIdCounter).padStart(6, "0");
+      const newCustomerId = customerIdMap[oldCustomerId] || oldCustomerId;
+      
+      let newBookingNo = booking.BookingNo;
+      
+      if (!newBookingNo || !newBookingNo.startsWith("RKB")) {
+        newBookingNo = "RKB" + String(bookingNoCounter).padStart(5, "0");
+      }
+      
+      update(
+        APP.SHEETS.BOOKINGS,
+        "BookingID",
+        oldBookingId,
+        {
+          BookingID: newBookingId,
+          CustomerID: newCustomerId,
+          BookingNo: newBookingNo
+        }
+      );
+      
+      Logger.log("Migrated Booking: " + oldBookingId + " -> " + newBookingId);
+      Logger.log("  Updated CustomerID: " + oldCustomerId + " -> " + newCustomerId);
+      
+      bookingIdCounter++;
+      bookingNoCounter++;
+      bookingsMigrated++;
+    });
+    
+    Logger.log("Booking migration complete: " + bookingsMigrated + " bookings");
+    
+    const highestCustomerId = "CUS" + String(customerIdCounter - 1).padStart(5, "0");
+    const highestBookingId = "BK" + String(bookingIdCounter - 1).padStart(6, "0");
+    const highestBookingNo = "RKB" + String(bookingNoCounter - 1).padStart(5, "0");
+    
+    Logger.log("=== MIGRATION COMPLETE ===");
+    Logger.log("Customers migrated: " + customersMigrated);
+    Logger.log("Bookings migrated: " + bookingsMigrated);
+    Logger.log("Highest CustomerID: " + highestCustomerId);
+    Logger.log("Highest BookingID: " + highestBookingId);
+    Logger.log("Highest BookingNo: " + highestBookingNo);
+    
+    return {
+      success: true,
+      customersMigrated: customersMigrated,
+      bookingsMigrated: bookingsMigrated,
+      highestCustomerId: highestCustomerId,
+      highestBookingId: highestBookingId,
+      highestBookingNo: highestBookingNo
+    };
+    
+  } catch (e) {
+    
+    Logger.log("ERROR during migration: " + e.message);
     Logger.log("Stack trace: " + e.stack);
     
     return {
