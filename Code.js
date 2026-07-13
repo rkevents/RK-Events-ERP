@@ -161,82 +161,10 @@ const SHEET_HEADERS = {
  ***************************************************************/
 
 /***************************************************************
- * CUSTOM MENU
- ***************************************************************/
-
-function onOpen() {
-  
-  const ui = SpreadsheetApp.getUi();
-  
-  ui.createMenu('🔧 RK Events Admin')
-    .addItem('🗑️ Clear All Bookings & Customers', 'runCleanup')
-    .addSeparator()
-    .addItem('ℹ️ About', 'showAbout')
-    .addToUi();
-    
-}
-
-function runCleanup() {
-  
-  const ui = SpreadsheetApp.getUi();
-  
-  const response = ui.alert(
-    'Reset Development Data',
-    'This will delete ALL bookings and customers. Are you sure?',
-    ui.ButtonSet.YES_NO
-  );
-  
-  if (response == ui.Button.YES) {
-    
-    const result = resetDevelopmentData();
-    
-    if (result.success) {
-      const data = result.data || {};
-      const msg = 'Deleted:\n• Bookings: ' + (data.bookingsDeleted || 0) + 
-                  '\n• Customers: ' + (data.customersDeleted || 0);
-      ui.alert('✅ Success', msg, ui.ButtonSet.OK);
-    } else {
-      ui.alert('❌ Error', result.message, ui.ButtonSet.OK);
-    }
-    
-  }
-  
-}
-
-function showAbout() {
-  
-  const ui = SpreadsheetApp.getUi();
-  ui.alert(
-    'RK Events ERP',
-    'Version: 2.0\nEvent Booking Management System',
-    ui.ButtonSet.OK
-  );
-  
-}
-
-/***************************************************************
  * WEB APP ENTRY
  ***************************************************************/
 
-function doGet(e){
-
-  if (e && e.parameter) {
-    
-    if (e.parameter.page === 'admin') {
-      return HtmlService
-        .createHtmlOutputFromFile("admin")
-        .setTitle("RK Events - Admin Panel")
-        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-    }
-    
-    if (e.parameter.action === 'reset') {
-      const result = resetDevelopmentData();
-      return ContentService
-        .createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-      
-  }
+function doGet(){
 
   initializeApplication();
 
@@ -1014,10 +942,10 @@ function updateBooking(data) {
  *****************************************************************/
 
 /**
- * Permanent Admin Utility - Reset Development Database
+ * Development Utility - Reset Development Database
  * Clears all test data from Bookings and Customers sheets
  * Preserves headers and sheet structure
- * @returns {Object} Result with success status and message
+ * @returns {Object} {success: boolean, bookingsDeleted: number, customersDeleted: number}
  */
 function resetDevelopmentData() {
   
@@ -1041,12 +969,12 @@ function resetDevelopmentData() {
       if (lastRow > 1) {
         bookingsSheet.deleteRows(2, lastRow - 1);
         bookingsDeleted = lastRow - 1;
-        Logger.log("✓ Deleted " + bookingsDeleted + " booking rows");
+        Logger.log("Deleted " + bookingsDeleted + " booking rows");
       } else {
-        Logger.log("✓ Bookings already empty");
+        Logger.log("Bookings already empty");
       }
     } else {
-      Logger.log("✗ Bookings sheet not found");
+      Logger.log("ERROR: Bookings sheet not found");
     }
     
     if (customersSheet) {
@@ -1056,39 +984,35 @@ function resetDevelopmentData() {
       if (lastRow > 1) {
         customersSheet.deleteRows(2, lastRow - 1);
         customersDeleted = lastRow - 1;
-        Logger.log("✓ Deleted " + customersDeleted + " customer rows");
+        Logger.log("Deleted " + customersDeleted + " customer rows");
       } else {
-        Logger.log("✓ Customers already empty");
+        Logger.log("Customers already empty");
       }
     } else {
-      Logger.log("✗ Customers sheet not found");
+      Logger.log("ERROR: Customers sheet not found");
     }
     
     Logger.log("=== CLEANUP COMPLETE ===");
     Logger.log("Bookings deleted: " + bookingsDeleted);
     Logger.log("Customers deleted: " + customersDeleted);
     
-    return success("Development data reset successfully", {
+    return {
+      success: true,
       bookingsDeleted: bookingsDeleted,
-      customersDeleted: customersDeleted,
-      timestamp: new Date().toISOString()
-    });
+      customersDeleted: customersDeleted
+    };
     
   } catch (e) {
     
-    Logger.log("✗ Error during cleanup: " + e.message);
+    Logger.log("ERROR during cleanup: " + e.message);
     Logger.log("Stack trace: " + e.stack);
     
-    return failure("Cleanup failed: " + e.message);
+    return {
+      success: false,
+      bookingsDeleted: 0,
+      customersDeleted: 0
+    };
     
   }
   
-}
-
-/**
- * Legacy function - calls resetDevelopmentData()
- * @deprecated Use resetDevelopmentData() instead
- */
-function clearAllBookingsAndCustomers() {
-  return resetDevelopmentData();
 }
