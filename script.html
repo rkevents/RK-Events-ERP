@@ -614,9 +614,31 @@ function handleMobilePaste(event) {
     event.preventDefault();
     const paste = (event.clipboardData || window.clipboardData).getData('text');
     const digitsOnly = paste.replace(/[^0-9]/g, '');
+    
+    if (paste !== digitsOnly) {
+        showToast("Only digits allowed in mobile number", "warning");
+    }
+    
     const limited = digitsOnly.substring(0, 10);
     document.getElementById('mobile').value = limited;
     handleMobileInput();
+}
+
+let lastMobileValue = "";
+
+function validateMobileInput(event) {
+    const input = event.target;
+    const beforeValue = lastMobileValue;
+    const afterValue = input.value;
+    
+    if (afterValue.length > beforeValue.length) {
+        const newChars = afterValue.substring(beforeValue.length);
+        if (/[^0-9]/.test(newChars)) {
+            showToast("Only numbers (0-9) allowed", "warning");
+        }
+    }
+    
+    lastMobileValue = afterValue;
 }
 
 function handleMobileInput() {
@@ -627,6 +649,8 @@ function handleMobileInput() {
     console.log("Mobile entered:", mobile);
     console.log("Length:", mobile.length);
 
+    validateMobileInput({ target: document.getElementById("mobile") });
+
     clearTimeout(lookupTimeout);
 
     const statusBadge = document.getElementById("customerStatus");
@@ -634,12 +658,22 @@ function handleMobileInput() {
 
     if (mobile.length !== 10) {
         console.log("Mobile length not 10, hiding status");
-        if (statusBadge) statusBadge.style.display = "none";
-        if (historyDiv) historyDiv.style.display = "none";
+        if (statusBadge) {
+            statusBadge.style.display = "none";
+        }
+        if (historyDiv) {
+            historyDiv.style.display = "none";
+        }
         return;
     }
 
     console.log("Mobile is 10 digits, triggering lookup in 500ms...");
+
+    if (statusBadge) {
+        statusBadge.className = "badge bg-secondary mt-2";
+        statusBadge.textContent = "🔍 Searching...";
+        statusBadge.style.display = "inline-block";
+    }
 
     lookupTimeout = setTimeout(async function() {
         console.log("Timeout executed, calling searchCustomer()");
@@ -653,6 +687,9 @@ async function searchCustomer(mobile) {
     console.log("=== SEARCH CUSTOMER ===");
     console.log("Calling backend with mobile:", mobile);
 
+    const statusBadge = document.getElementById("customerStatus");
+    const historyDiv = document.getElementById("customerHistory");
+
     try {
 
         const result = await callServer(
@@ -665,13 +702,26 @@ async function searchCustomer(mobile) {
         console.log("Message:", result.message);
         console.log("Data:", result.data);
 
-        if (!result.success) {
-            console.error("Search failed:", result.message);
+        if (!result) {
+            console.error("No result returned");
+            showToast("Customer lookup failed - no response", "danger");
+            if (statusBadge) statusBadge.style.display = "none";
             return;
         }
 
-        const statusBadge = document.getElementById("customerStatus");
-        const historyDiv = document.getElementById("customerHistory");
+        if (!result.success) {
+            console.error("Search failed:", result.message);
+            showToast("Customer lookup failed: " + result.message, "danger");
+            if (statusBadge) statusBadge.style.display = "none";
+            return;
+        }
+
+        if (!result.data) {
+            console.error("No data in result");
+            showToast("Customer lookup failed - no data", "danger");
+            if (statusBadge) statusBadge.style.display = "none";
+            return;
+        }
 
         console.log("Is New Customer:", result.data.isNew);
         console.log("Exists:", result.data.exists);
@@ -699,12 +749,20 @@ async function searchCustomer(mobile) {
             console.log("Customer data:", result.data.customer);
             console.log("History data:", result.data.history);
 
+            if (!result.data.customer) {
+                console.error("Customer data missing!");
+                showToast("Customer data incomplete", "warning");
+                return;
+            }
+
             if (statusBadge) {
                 statusBadge.className = "badge bg-success mt-2";
                 statusBadge.textContent = "🟢 Existing Customer";
                 statusBadge.style.display = "inline-block";
                 console.log("Badge set to: Existing Customer");
             }
+
+            showToast("Customer found: " + result.data.customer.CustomerName, "success");
 
             populateCustomerData(result.data.customer);
 
@@ -719,6 +777,8 @@ async function searchCustomer(mobile) {
     } catch (e) {
         console.error("=== ERROR IN SEARCH ===");
         console.error(e);
+        showToast("Error searching customer: " + (e.message || "Unknown error"), "danger");
+        if (statusBadge) statusBadge.style.display = "none";
     }
 
 }
