@@ -421,12 +421,15 @@ function disableFormFields() {
 
     });
 
-    const saveBtn = document.querySelector(
-        "#bookingModal .modal-footer .btn-primary"
-    );
+    const saveBtn = document.getElementById("saveBookingBtn");
+    const editBtn = document.getElementById("editFromViewBtn");
 
     if (saveBtn) {
         saveBtn.style.display = "none";
+    }
+
+    if (editBtn) {
+        editBtn.style.display = "";
     }
 
 }
@@ -459,12 +462,15 @@ function enableFormFields() {
 
     });
 
-    const saveBtn = document.querySelector(
-        "#bookingModal .modal-footer .btn-primary"
-    );
+    const saveBtn = document.getElementById("saveBookingBtn");
+    const editBtn = document.getElementById("editFromViewBtn");
 
     if (saveBtn) {
         saveBtn.style.display = "";
+    }
+
+    if (editBtn) {
+        editBtn.style.display = "none";
     }
 
 }
@@ -1009,6 +1015,24 @@ async function viewBooking(id) {
         );
 
     }
+
+}
+
+/******************************************************
+ * SWITCH TO EDIT MODE FROM VIEW
+ ******************************************************/
+function switchToEditMode() {
+
+    if (!currentBookingId) {
+        return;
+    }
+
+    isViewMode = false;
+
+    enableFormFields();
+
+    document.querySelector("#bookingModal .modal-title").innerHTML =
+        '<i class="bi bi-pencil-square me-2"></i>Edit Booking';
 
 }
 

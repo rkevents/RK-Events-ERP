@@ -314,11 +314,24 @@
                     class="btn btn-secondary"
                     data-bs-dismiss="modal">
 
-                    Cancel
+                    Close
 
                 </button>
 
                 <button
+                    id="editFromViewBtn"
+                    class="btn btn-warning"
+                    onclick="switchToEditMode()"
+                    style="display:none;">
+
+                    <i class="bi bi-pencil me-2"></i>
+
+                    Edit Booking
+
+                </button>
+
+                <button
+                    id="saveBookingBtn"
                     class="btn btn-primary"
                     onclick="saveBooking()">
 
