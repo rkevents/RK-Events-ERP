@@ -248,27 +248,15 @@ function getDashboardSummary(){
   
   const uniqueCustomerIds = {};
   bookings.forEach(function(booking) {
-    Logger.log("Booking CustomerID: '" + booking.CustomerID + "' (type: " + typeof booking.CustomerID + ")");
     if (booking.CustomerID) {
-      let rawId = String(booking.CustomerID).trim();
-      
-      let cleanId = rawId;
-      if (rawId.startsWith("RKCO") && rawId.length > 9) {
-        cleanId = rawId.substring(0, 9);
-      } else if (rawId.startsWith("CUS")) {
-        cleanId = rawId;
-      }
-      
-      Logger.log("Cleaned CustomerID: '" + cleanId + "' from '" + rawId + "'");
-      uniqueCustomerIds[cleanId] = true;
+      const customerId = String(booking.CustomerID).trim();
+      uniqueCustomerIds[customerId] = true;
     }
   });
   
-  Logger.log("Unique CustomerIDs: " + JSON.stringify(Object.keys(uniqueCustomerIds)));
-  
   const customerCount = Object.keys(uniqueCustomerIds).length;
   
-  Logger.log("Customer count: " + customerCount);
+  Logger.log("Unique customers: " + customerCount);
 
   return{
 
@@ -415,7 +403,7 @@ function searchCustomerByMobile(mobile) {
       });
     }
 
-    Logger.log("=== VERSION: 2024-07-13-23:32 ===");
+    Logger.log("=== VERSION: 2024-07-14-00:34 ===");
     Logger.log("Customer details: " + JSON.stringify(customer));
 
     Logger.log("Fetching bookings for CustomerID: " + customer.CustomerID);
@@ -424,25 +412,22 @@ function searchCustomerByMobile(mobile) {
     Logger.log("Total bookings in sheet: " + allBookings.length);
     
     const bookings = [];
-    const customerCustomerId = String(customer.CustomerID || "").trim().substring(0, 9);
+    const targetCustomerId = String(customer.CustomerID || "").trim();
     
-    Logger.log("Looking for CustomerID starting with: '" + customerCustomerId + "'");
+    Logger.log("Looking for exact CustomerID: '" + targetCustomerId + "'");
     
     allBookings.forEach(function(b, idx) {
       const bookingCustomerId = String(b.CustomerID || "").trim();
-      const cleanBookingId = bookingCustomerId.substring(0, 9);
       
-      Logger.log("Booking " + idx + ": '" + bookingCustomerId + "' -> cleaned: '" + cleanBookingId + "'");
+      Logger.log("Booking " + idx + " - CustomerID: '" + bookingCustomerId + "'");
       
-      if (cleanBookingId === customerCustomerId) {
+      if (bookingCustomerId === targetCustomerId) {
         Logger.log("  -> MATCH! Adding to results");
         bookings.push(b);
-      } else {
-        Logger.log("  -> no match");
       }
     });
 
-    Logger.log("Bookings found: " + bookings.length);
+    Logger.log("Bookings found for customer: " + bookings.length);
 
     const totalBookings = bookings.length;
     
@@ -450,6 +435,7 @@ function searchCustomerByMobile(mobile) {
     let eventTypes = [];
     
     if (totalBookings > 0) {
+      
       bookings.sort(function(a, b) {
         const dateA = a.EventDate ? new Date(a.EventDate) : new Date(0);
         const dateB = b.EventDate ? new Date(b.EventDate) : new Date(0);
@@ -458,13 +444,19 @@ function searchCustomerByMobile(mobile) {
       
       lastEventDate = bookings[0].EventDate;
       
+      Logger.log("Latest EventDate: " + lastEventDate);
+      
       eventTypes = [];
       bookings.forEach(function(b) {
         if (b.EventType && eventTypes.indexOf(b.EventType) === -1) {
           eventTypes.push(b.EventType);
+          Logger.log("Found EventType: " + b.EventType);
         }
       });
     }
+    
+    Logger.log("Total Bookings: " + totalBookings);
+    Logger.log("Event Types: " + eventTypes.join(", "));
 
     Logger.log("Returning EXISTING customer with history");
 
