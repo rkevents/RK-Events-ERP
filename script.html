@@ -1,6 +1,7 @@
 <!-- ==========================================================
  RK EVENTS ERP
  script.html
+ Version : 2.1
 =========================================================== -->
 
 <script>
@@ -8,26 +9,22 @@
 /******************************************************
  * LOADER
  ******************************************************/
-function showLoader(){
+function showLoader() {
 
-    const loader=document.getElementById("loader");
+    const loader = document.getElementById("loader");
 
-    if(loader){
-
-        loader.style.display="flex";
-
+    if (loader) {
+        loader.style.display = "flex";
     }
 
 }
 
-function hideLoader(){
+function hideLoader() {
 
-    const loader=document.getElementById("loader");
+    const loader = document.getElementById("loader");
 
-    if(loader){
-
-        loader.style.display="none";
-
+    if (loader) {
+        loader.style.display = "none";
     }
 
 }
@@ -35,160 +32,218 @@ function hideLoader(){
 /******************************************************
  * TOAST
  ******************************************************/
-function showToast(message,type="success"){
+function showToast(message, type = "success") {
 
-    const container=
-        document.getElementById("toastContainer");
+    const container = document.getElementById("toastContainer");
 
-    if(!container) return;
+    if (!container) return;
 
-    const toast=document.createElement("div");
+    const toast = document.createElement("div");
 
-    toast.className=
-        "toast align-items-center text-bg-"+type+
+    toast.className =
+        "toast align-items-center text-bg-" +
+        type +
         " border-0";
 
-    toast.innerHTML=`
-    <div class="d-flex">
+    toast.innerHTML = `
+        <div class="d-flex">
 
-        <div class="toast-body">
+            <div class="toast-body">
 
-            ${message}
+                ${message}
+
+            </div>
+
+            <button
+                type="button"
+                class="btn-close btn-close-white me-2 m-auto"
+                data-bs-dismiss="toast">
+            </button>
 
         </div>
-
-        <button
-            type="button"
-            class="btn-close btn-close-white me-2 m-auto"
-            data-bs-dismiss="toast">
-        </button>
-
-    </div>
     `;
 
     container.appendChild(toast);
 
-    const bsToast=
-        new bootstrap.Toast(toast,{
-            delay:3000
-        });
+    const bsToast = new bootstrap.Toast(toast, {
+        delay: 3000
+    });
 
     bsToast.show();
 
-    toast.addEventListener(
-        "hidden.bs.toast",
-        ()=>{
+    toast.addEventListener("hidden.bs.toast", function () {
 
-            toast.remove();
-
-        });
-
-}
-
-/******************************************************
- * GOOGLE APPS SCRIPT
- ******************************************************/
-function callServer(functionName,...params){
-
-    return new Promise((resolve,reject)=>{
-
-        showLoader();
-
-        google.script.run
-
-        .withSuccessHandler(result=>{
-
-            hideLoader();
-
-            resolve(result);
-
-        })
-
-        .withFailureHandler(error=>{
-
-            hideLoader();
-
-            console.error(error);
-
-            showToast(
-                error.message,
-                "danger"
-            );
-
-            reject(error);
-
-        })
-
-        [functionName](...params);
+        toast.remove();
 
     });
 
 }
 
 /******************************************************
- * UTILITY
+ * GOOGLE APPS SCRIPT
  ******************************************************/
-function setText(id,value){
+function callServer(functionName, ...params) {
 
-    const element=
+    return new Promise((resolve, reject) => {
+
+        showLoader();
+
+        try {
+
+            google.script.run
+
+                .withSuccessHandler(function (result) {
+
+                    hideLoader();
+
+                    console.groupCollapsed(
+                        "Apps Script : " + functionName
+                    );
+
+                    console.log("Function :", functionName);
+                    console.log("Result   :", result);
+                    console.log("Type     :", typeof result);
+
+                    console.groupEnd();
+
+                    if (result === null || result === undefined) {
+
+                        reject({
+                            success: false,
+                            message:
+                                functionName +
+                                " returned NULL."
+                        });
+
+                        return;
+
+                    }
+
+                    resolve(result);
+
+                })
+
+                .withFailureHandler(function (error) {
+
+                    hideLoader();
+
+                    console.error(error);
+
+                    showToast(
+                        error.message ||
+                        "Server Error",
+                        "danger"
+                    );
+
+                    reject(error);
+
+                })
+
+                [functionName](...params);
+
+        }
+        catch (e) {
+
+            hideLoader();
+
+            console.error(e);
+
+            reject(e);
+
+        }
+
+    });
+
+}
+
+/******************************************************
+ * COMMON UTILITIES
+ ******************************************************/
+function setText(id, value) {
+
+    const element =
         document.getElementById(id);
 
-    if(element){
+    if (element) {
 
-        element.textContent=value;
+        element.textContent =
+            value ?? "";
 
     }
 
 }
 
+function safeValue(id) {
+
+    const element =
+        document.getElementById(id);
+
+    if (!element)
+        return "";
+
+    return element.value.trim();
+
+}
+
+function safeNumber(id) {
+
+    const value =
+        Number(
+            document.getElementById(id)?.value
+        );
+
+    return isNaN(value)
+        ? 0
+        : value;
+
+}
 /******************************************************
  * LOAD DASHBOARD
  ******************************************************/
-async function loadDashboard(){
+async function loadDashboard() {
 
-    try{
+    try {
 
-        const result=
+        const result =
             await callServer(
                 "getDashboardSummary"
             );
 
-        if(result){
+        if (!result)
+            return;
 
-            setText(
-                "totalCustomers",
-                result.customers
-            );
+        setText(
+            "totalCustomers",
+            result.customers
+        );
 
-            setText(
-                "totalBookings",
-                result.bookings
-            );
+        setText(
+            "totalBookings",
+            result.bookings
+        );
 
-            setText(
-                "totalPackages",
-                result.packages
-            );
+        setText(
+            "totalPackages",
+            result.packages
+        );
 
-            setText(
-                "totalEmployees",
-                result.employees
-            );
+        setText(
+            "totalEmployees",
+            result.employees
+        );
 
-            setText(
-                "totalExpenses",
-                result.expenses
-            );
+        setText(
+            "totalExpenses",
+            result.expenses
+        );
 
-            setText(
-                "companyName",
-                result.company
-            );
-
-        }
+        setText(
+            "companyName",
+            result.company
+        );
 
     }
-    catch(e){
+    catch (e) {
 
         console.error(e);
 
@@ -197,28 +252,35 @@ async function loadDashboard(){
 }
 
 /******************************************************
- * USER SESSION
+ * LOAD USER SESSION
  ******************************************************/
-async function loadSession(){
+async function loadSession() {
 
-    try{
+    try {
 
-        const session=
+        const session =
             await callServer(
                 "getSession"
             );
 
-        if(session.success){
+        if (!session.success) {
 
-            setText(
-                "loggedUser",
-                session.data.name
+            showToast(
+                session.message,
+                "danger"
             );
+
+            return;
 
         }
 
+        setText(
+            "loggedUser",
+            session.data.name
+        );
+
     }
-    catch(e){
+    catch (e) {
 
         console.error(e);
 
@@ -229,22 +291,22 @@ async function loadSession(){
 /******************************************************
  * PAGE NAVIGATION
  ******************************************************/
-function showPage(pageId){
+function showPage(pageId) {
 
     document
         .querySelectorAll(".app-page")
-        .forEach(function(page){
+        .forEach(function (page) {
 
-            page.style.display="none";
+            page.style.display = "none";
 
         });
 
-    const page=
+    const page =
         document.getElementById(pageId);
 
-    if(page){
+    if (page) {
 
-        page.style.display="block";
+        page.style.display = "block";
 
     }
 
@@ -253,7 +315,7 @@ function showPage(pageId){
 /******************************************************
  * DASHBOARD
  ******************************************************/
-function showDashboard(){
+function showDashboard() {
 
     showPage("dashboardPage");
 
@@ -264,26 +326,41 @@ function showDashboard(){
 /******************************************************
  * BOOKINGS
  ******************************************************/
-function showBookings(){
+function showBookings() {
 
     showPage("bookingsPage");
 
     loadBookings();
 
 }
+
 /******************************************************
  * BOOKING MODAL
  ******************************************************/
-
 let bookingModal = null;
 
 function openBookingForm() {
 
-    const modalElement =
-        document.getElementById("bookingModal");
+    const modal =
+        document.getElementById(
+            "bookingModal"
+        );
+
+    if (!modal) {
+
+        showToast(
+            "Booking form not found.",
+            "danger"
+        );
+
+        return;
+
+    }
 
     bookingModal =
-        bootstrap.Modal.getOrCreateInstance(modalElement);
+        bootstrap.Modal.getOrCreateInstance(
+            modal
+        );
 
     clearBookingForm();
 
@@ -304,7 +381,6 @@ function closeBookingForm() {
 /******************************************************
  * CLEAR BOOKING FORM
  ******************************************************/
-
 function clearBookingForm() {
 
     [
@@ -320,14 +396,15 @@ function clearBookingForm() {
         "advanceAmount",
         "balanceAmount",
         "remarks"
-    ].forEach(function(id){
+    ].forEach(function (id) {
 
-        const el = document.getElementById(id);
+        const el =
+            document.getElementById(id);
 
-        if(!el){
-            console.log(id + " NOT FOUND");
-        }else{
+        if (el) {
+
             el.value = "";
+
         }
 
     });
@@ -336,52 +413,47 @@ function clearBookingForm() {
         "eventType",
         "paymentStatus",
         "bookingStatus"
-    ].forEach(function(id){
+    ].forEach(function (id) {
 
-        const el = document.getElementById(id);
+        const el =
+            document.getElementById(id);
 
-        if(!el){
-            console.log(id + " NOT FOUND");
-        }else{
+        if (el) {
+
             el.selectedIndex = 0;
+
         }
 
     });
 
 }
+
 /******************************************************
  * CALCULATE BALANCE
  ******************************************************/
-
 function calculateBalance() {
 
     const budget =
-        Number(document.getElementById("budget").value) || 0;
+        safeNumber("budget");
 
     const advance =
-        Number(document.getElementById("advanceAmount").value) || 0;
+        safeNumber("advanceAmount");
 
-    document.getElementById("balanceAmount").value =
-        budget - advance;
+    document.getElementById(
+        "balanceAmount"
+    ).value = budget - advance;
 
 }
-
 /******************************************************
  * SAVE BOOKING
  ******************************************************/
-
 async function saveBooking() {
 
     const booking = {
 
-        customerName:
-            document.getElementById("customerName").value.trim(),
-
-        mobile:
-            document.getElementById("mobile").value.trim(),
-
-        alternateMobile:
-            document.getElementById("alternateMobile").value.trim(),
+        customerName: safeValue("customerName"),
+        mobile: safeValue("mobile"),
+        alternateMobile: safeValue("alternateMobile"),
 
         eventType:
             document.getElementById("eventType").value,
@@ -392,23 +464,16 @@ async function saveBooking() {
         eventTime:
             document.getElementById("eventTime").value,
 
-        venue:
-            document.getElementById("venue").value.trim(),
-
-        requirement:
-            document.getElementById("requirement").value.trim(),
-
-        budget:
-            document.getElementById("budget").value,
-
-        googleMap:
-            document.getElementById("googleMap").value.trim(),
+        venue: safeValue("venue"),
+        requirement: safeValue("requirement"),
+        budget: safeNumber("budget"),
+        googleMap: safeValue("googleMap"),
 
         advanceAmount:
-            document.getElementById("advanceAmount").value,
+            safeNumber("advanceAmount"),
 
         balanceAmount:
-            document.getElementById("balanceAmount").value,
+            safeNumber("balanceAmount"),
 
         paymentStatus:
             document.getElementById("paymentStatus").value,
@@ -416,58 +481,21 @@ async function saveBooking() {
         bookingStatus:
             document.getElementById("bookingStatus").value,
 
-        remarks:
-            document.getElementById("remarks")
-                ? document.getElementById("remarks").value
-                : ""
+        remarks: safeValue("remarks")
 
     };
 
-    /* Mandatory */
+    if (!booking.customerName)
+        return showToast("Customer Name is required", "danger");
 
-    if (!booking.customerName) {
+    if (!booking.mobile)
+        return showToast("Mobile Number is required", "danger");
 
-        showToast(
-            "Customer Name is required",
-            "danger"
-        );
+    if (!booking.eventType)
+        return showToast("Event Type is required", "danger");
 
-        return;
-
-    }
-
-    if (!booking.mobile) {
-
-        showToast(
-            "Mobile Number is required",
-            "danger"
-        );
-
-        return;
-
-    }
-
-    if (!booking.eventType) {
-
-        showToast(
-            "Event Type is required",
-            "danger"
-        );
-
-        return;
-
-    }
-
-    if (!booking.eventDate) {
-
-        showToast(
-            "Event Date is required",
-            "danger"
-        );
-
-        return;
-
-    }
+    if (!booking.eventDate)
+        return showToast("Event Date is required", "danger");
 
     try {
 
@@ -477,56 +505,92 @@ async function saveBooking() {
                 booking
             );
 
-        if (result.success) {
-
-            showToast(result.message);
-
-            bookingModal.hide();
-
-            loadBookings();
-
-        } else {
+        if (!result.success) {
 
             showToast(
                 result.message,
                 "danger"
             );
 
+            return;
+
         }
+
+        showToast(result.message);
+
+        if (bookingModal) {
+
+            bookingModal.hide();
+
+        }
+
+        await loadBookings();
+
+        await loadDashboard();
 
     }
     catch (e) {
 
         console.error(e);
 
+        showToast(
+            e.message || "Unable to save booking.",
+            "danger"
+        );
+
     }
 
 }
+
 /******************************************************
  * LOAD BOOKINGS
  ******************************************************/
-
 async function loadBookings() {
 
     try {
 
         const result =
-            await callServer("getBookingList");
+            await callServer(
+                "getBookingList"
+            );
 
-        if (!result.success) {
+        console.log("Booking Response :", result);
 
-            showToast(result.message, "danger");
+        if (!result) {
+
+            showToast(
+                "No response from server.",
+                "danger"
+            );
 
             return;
 
         }
 
-        renderBookingTable(result.data);
+        if (!result.success) {
+
+            showToast(
+                result.message,
+                "danger"
+            );
+
+            return;
+
+        }
+
+        renderBookingTable(
+            result.data || []
+        );
 
     }
     catch (e) {
 
         console.error(e);
+
+        showToast(
+            e.message || "Unable to load bookings.",
+            "danger"
+        );
 
     }
 
@@ -535,35 +599,35 @@ async function loadBookings() {
 /******************************************************
  * RENDER BOOKING TABLE
  ******************************************************/
-
 function renderBookingTable(bookings) {
 
     const tbody =
         document.getElementById("bookingTable");
 
-    if (!tbody) return;
+    if (!tbody)
+        return;
 
-    if (!bookings || bookings.length === 0) {
+    tbody.innerHTML = "";
+
+    if (!bookings || !Array.isArray(bookings) || !bookings.length) {
 
         tbody.innerHTML = `
-            <tr>
-                <td colspan="10"
-                    class="text-center text-muted">
-                    No Bookings Available
-                </td>
-            </tr>
-        `;
+        <tr>
+            <td colspan="10"
+                class="text-center text-muted">
+                No Bookings Available
+            </td>
+        </tr>`;
+
+        setText("bookingCount", "Total Bookings : 0");
 
         return;
 
     }
 
-    let html = "";
+    bookings.forEach(function(item){
 
-    bookings.forEach(function (item) {
-
-        html += `
-
+        tbody.innerHTML += `
         <tr>
 
             <td>${item.BookingNo || ""}</td>
@@ -595,7 +659,7 @@ function renderBookingTable(bookings) {
                 </button>
 
                 <button
-                    class="btn btn-sm btn-danger ms-1"
+                    class="btn btn-sm btn-danger"
                     onclick="deleteBooking('${item.BookingID}')">
 
                     <i class="bi bi-trash"></i>
@@ -604,27 +668,29 @@ function renderBookingTable(bookings) {
 
             </td>
 
-        </tr>
-
-        `;
+        </tr>`;
 
     });
 
-    tbody.innerHTML = html;
+    setText("bookingCount", "Total Bookings : " + bookings.length);
 
 }
 
 /******************************************************
  * SEARCH BOOKINGS
  ******************************************************/
-
 function searchBookings() {
 
+    const search =
+        document.getElementById("bookingSearch");
+
+    if (!search)
+        return;
+
     const keyword =
-        document
-            .getElementById("bookingSearch")
-            .value
-            .toLowerCase();
+        search.value
+            .toLowerCase()
+            .trim();
 
     document
         .querySelectorAll("#bookingTable tr")
@@ -644,45 +710,78 @@ function searchBookings() {
 /******************************************************
  * EDIT BOOKING
  ******************************************************/
+async function editBooking(id) {
 
-function editBooking(id) {
+    try {
 
-    showToast(
-        "Edit Booking - Coming Soon",
-        "warning"
-    );
+        const result =
+            await callServer(
+                "getBookingById",
+                id
+            );
+
+        if (!result.success) {
+
+            showToast(
+                result.message,
+                "danger"
+            );
+
+            return;
+
+        }
+
+        showToast(
+            "Edit module will be completed in Sprint 2.",
+            "warning"
+        );
+
+    }
+    catch (e) {
+
+        console.error(e);
+
+    }
 
 }
 
 /******************************************************
  * DELETE BOOKING
  ******************************************************/
+async function deleteBooking(id) {
 
-function deleteBooking(id) {
-
-    if (!confirm("Delete this booking?")) {
+    if (!confirm("Are you sure you want to delete this booking?")) {
 
         return;
 
     }
 
-    showToast(
-        "Delete Booking - Coming Soon",
-        "warning"
-    );
+    try {
+
+        showToast(
+            "Delete module will be completed in Sprint 2.",
+            "warning"
+        );
+
+    }
+    catch (e) {
+
+        console.error(e);
+
+    }
 
 }
 
 /******************************************************
- * SIDEBAR ACTIVE
+ * SIDEBAR ACTIVE MENU
  ******************************************************/
-
 document.addEventListener("click", function (e) {
 
     const menu =
         e.target.closest(".menu-link");
 
-    if (!menu) return;
+    if (!menu)
+        return;
 
     document
         .querySelectorAll(".menu-link")
@@ -697,16 +796,31 @@ document.addEventListener("click", function (e) {
 });
 
 /******************************************************
- * APPLICATION START
+ * APPLICATION STARTUP
  ******************************************************/
-
 window.onload = async function () {
 
-    await loadSession();
+    console.log("RK EVENTS ERP v2.1 Started");
 
-    await loadDashboard();
+    try {
 
-    showDashboard();
+        await loadSession();
+
+        await loadDashboard();
+
+        showDashboard();
+
+    }
+    catch (e) {
+
+        console.error(e);
+
+        showToast(
+            "Application startup failed.",
+            "danger"
+        );
+
+    }
 
 };
 

@@ -499,30 +499,38 @@ function saveBooking(data){
 
 function getBookingList() {
 
-  try {
+  const bookings = getAll(APP.SHEETS.BOOKINGS);
 
-    const bookings = getAll(APP.SHEETS.BOOKINGS);
+  Logger.log("Bookings length = " + bookings.length);
 
-    bookings.sort(function (a, b) {
+  const serializedBookings = bookings.map(function(booking) {
+    const result = {};
+    for (var key in booking) {
+      if (booking.hasOwnProperty(key)) {
+        var value = booking[key];
+        if (value instanceof Date) {
+          result[key] = Utilities.formatDate(
+            value,
+            APP.DATE.TIMEZONE,
+            APP.DATE.DATETIME
+          );
+        } else if (value === null || value === undefined) {
+          result[key] = "";
+        } else {
+          result[key] = value;
+        }
+      }
+    }
+    return result;
+  });
 
-      return new Date(b.CreatedOn) - new Date(a.CreatedOn);
+  Logger.log("Serialized bookings length = " + serializedBookings.length);
 
-    });
-
-    return success(
-
-      "Success",
-
-      bookings
-
-    );
-
-  }
-  catch (e) {
-
-    return failure(e.message);
-
-  }
+  return {
+    success: true,
+    message: "Success",
+    data: serializedBookings
+  };
 
 }
 
