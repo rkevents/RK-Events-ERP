@@ -378,52 +378,68 @@ function searchCustomerByMobile(mobile) {
 
   try {
 
-    Logger.log("=== SEARCH CUSTOMER BY MOBILE ===");
-    Logger.log("Mobile received: " + mobile);
+    Logger.log("========================================");
+    Logger.log("BACKEND: searchCustomerByMobile CALLED");
+    Logger.log("========================================");
+    Logger.log("1. INPUT: mobile = " + mobile);
+    Logger.log("   Type: " + typeof mobile);
 
     const normalizedMobile = normalizeMobile(mobile);
 
-    Logger.log("Normalized mobile: " + normalizedMobile);
+    Logger.log("2. NORMALIZED: " + normalizedMobile);
 
     if (!normalizedMobile) {
-      Logger.log("Validation failed: Invalid mobile number");
+      Logger.log("3. VALIDATION FAILED");
       return failure("Invalid mobile number");
     }
 
-    Logger.log("Calling findCustomerByMobile()");
+    Logger.log("3. CALLING findCustomerByMobile()");
     const customer = findCustomerByMobile(normalizedMobile);
 
-    Logger.log("Customer found: " + (customer ? "YES" : "NO"));
+    Logger.log("4. CUSTOMER OBJECT RETURNED:");
+    Logger.log(JSON.stringify(customer));
 
     if (!customer) {
-      Logger.log("Returning NEW customer");
+      Logger.log("5. NEW CUSTOMER - Returning");
       return success("New Customer", {
         exists: false,
         isNew: true
       });
     }
 
-    Logger.log("Customer found - CustomerID: " + customer.CustomerID + ", Name: " + customer.CustomerName);
+    Logger.log("5. EXISTING CUSTOMER FOUND");
+    Logger.log("   CustomerID: " + customer.CustomerID);
+    Logger.log("   CustomerName: " + customer.CustomerName);
+    Logger.log("   Mobile: " + customer.Mobile);
 
+    Logger.log("6. CALLING getAll(BOOKINGS)");
     const allBookings = getAll(APP.SHEETS.BOOKINGS);
+    Logger.log("7. NUMBER OF BOOKINGS LOADED: " + allBookings.length);
+    
+    Logger.log("8. NORMALIZING BOOKING OBJECTS");
     const normalizedBookings = allBookings.map(normalizeBookingObject);
     
-    Logger.log("Total bookings in sheet: " + normalizedBookings.length);
+    Logger.log("9. FILTERING BY MOBILE NUMBER (not CustomerID)");
+    const targetMobile = normalizeMobile(customer.Mobile);
+    Logger.log("   Target Mobile: " + targetMobile);
     
     const bookings = [];
-    const targetCustomerId = String(customer.CustomerID || "").trim();
     
     normalizedBookings.forEach(function(b) {
-      const bookingCustomerId = String(b.CustomerID || "").trim();
+      const bookingMobile = normalizeMobile(b.Mobile);
       
-      if (bookingCustomerId === targetCustomerId) {
+      if (bookingMobile === targetMobile) {
+        Logger.log("    MATCH FOUND: BookingNo=" + b.BookingNo + ", Mobile=" + bookingMobile);
         bookings.push(b);
       }
     });
 
-    Logger.log("Bookings matched for CustomerID " + targetCustomerId + ": " + bookings.length);
+    Logger.log("11. NUMBER OF MATCHED BOOKINGS: " + bookings.length);
 
     const totalBookings = bookings.length;
+    
+    Logger.log("12. CALCULATING HISTORY");
+    Logger.log("    totalBookings = " + totalBookings);
     
     let lastEventDate = "";
     let eventTypes = [];
@@ -437,18 +453,21 @@ function searchCustomerByMobile(mobile) {
       });
       
       lastEventDate = bookings[0].EventDate;
+      Logger.log("    lastEventDate = " + lastEventDate);
       
       eventTypes = [];
       bookings.forEach(function(b) {
         if (b.EventType && eventTypes.indexOf(b.EventType) === -1) {
           eventTypes.push(b.EventType);
+          Logger.log("    eventType added: " + b.EventType);
         }
       });
     }
     
-    Logger.log("Customer History - Total: " + totalBookings + ", Events: " + eventTypes.join(", ") + ", Latest: " + lastEventDate);
-
-    Logger.log("Returning customer history");
+    Logger.log("13. FINAL VALUES:");
+    Logger.log("    totalBookings = " + totalBookings);
+    Logger.log("    eventTypes = " + eventTypes.join(", "));
+    Logger.log("    lastEventDate = " + lastEventDate);
 
     const formatDateValue = function(value) {
       if (!value) return "";
@@ -457,6 +476,16 @@ function searchCustomerByMobile(mobile) {
       }
       return String(value);
     };
+    
+    const historyObject = {
+      customerSince: formatDateValue(customer.CreatedOn),
+      totalBookings: totalBookings,
+      lastEventDate: formatDateValue(lastEventDate),
+      eventTypes: eventTypes.join(", ")
+    };
+    
+    Logger.log("14. HISTORY OBJECT CREATED:");
+    Logger.log(JSON.stringify(historyObject));
     
     const returnObject = {
       exists: true,
@@ -470,13 +499,12 @@ function searchCustomerByMobile(mobile) {
         Address: customer.Address || "",
         CreatedOn: formatDateValue(customer.CreatedOn)
       },
-      history: {
-        customerSince: formatDateValue(customer.CreatedOn),
-        totalBookings: totalBookings,
-        lastEventDate: formatDateValue(lastEventDate),
-        eventTypes: eventTypes.join(", ")
-      }
+      history: historyObject
     };
+    
+    Logger.log("15. RETURN OBJECT TO FRONTEND:");
+    Logger.log(JSON.stringify(returnObject));
+    Logger.log("========================================");
 
     return success("Existing Customer", returnObject);
 

@@ -826,15 +826,32 @@ function clearCustomerFields() {
 
 function displayCustomerHistory(history) {
 
-    console.log("=== DISPLAY CUSTOMER HISTORY ===");
-    console.log("History object:", history);
+    console.log("========================================");
+    console.log("FRONTEND: displayCustomerHistory CALLED");
+    console.log("========================================");
+    console.log("16. HISTORY OBJECT RECEIVED:");
+    console.log(history);
+    console.log("    history.totalBookings = " + history.totalBookings);
+    console.log("    Type: " + typeof history.totalBookings);
+    console.log("    history.eventTypes = " + history.eventTypes);
+    console.log("    history.lastEventDate = " + history.lastEventDate);
+    console.log("    history.customerSince = " + history.customerSince);
 
+    console.log("17. SETTING HTML VALUES:");
     setText("customerSince", history.customerSince || "-");
+    console.log("    customerSince set to: " + (history.customerSince || "-"));
+    
     setText("totalBookings", history.totalBookings || "0");
+    console.log("    totalBookings set to: " + (history.totalBookings || "0"));
+    
     setText("lastEventDate", history.lastEventDate || "-");
+    console.log("    lastEventDate set to: " + (history.lastEventDate || "-"));
+    
     setText("previousEvents", history.eventTypes || "-");
+    console.log("    previousEvents set to: " + (history.eventTypes || "-"));
 
-    console.log("History displayed successfully");
+    console.log("18. HTML RENDERING COMPLETE");
+    console.log("========================================");
 
 }
 /******************************************************
