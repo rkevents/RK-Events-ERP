@@ -558,11 +558,37 @@ function getBookingById(bookingId) {
 
     }
 
+    const serializedBooking = {};
+    for (var key in booking) {
+      if (booking.hasOwnProperty(key)) {
+        var value = booking[key];
+        if (value instanceof Date) {
+          if (key === "EventDate") {
+            serializedBooking[key] = Utilities.formatDate(
+              value,
+              APP.DATE.TIMEZONE,
+              "yyyy-MM-dd"
+            );
+          } else {
+            serializedBooking[key] = Utilities.formatDate(
+              value,
+              APP.DATE.TIMEZONE,
+              APP.DATE.DATETIME
+            );
+          }
+        } else if (value === null || value === undefined) {
+          serializedBooking[key] = "";
+        } else {
+          serializedBooking[key] = value;
+        }
+      }
+    }
+
     return success(
 
       "Success",
 
-      booking
+      serializedBooking
 
     );
 
@@ -597,6 +623,8 @@ function deleteBooking(bookingId) {
       return failure("Booking not found.");
     }
 
+    const customerId = existing.CustomerID;
+
     const deleted = remove(
       APP.SHEETS.BOOKINGS,
       "BookingID",
@@ -605,6 +633,21 @@ function deleteBooking(bookingId) {
 
     if (!deleted) {
       return failure("Failed to delete booking.");
+    }
+
+    const remainingBookings = filterRecords(
+      APP.SHEETS.BOOKINGS,
+      function(booking) {
+        return booking.CustomerID === customerId;
+      }
+    );
+
+    if (remainingBookings.length === 0) {
+      remove(
+        APP.SHEETS.CUSTOMERS,
+        "CustomerID",
+        customerId
+      );
     }
 
     writeLog(
