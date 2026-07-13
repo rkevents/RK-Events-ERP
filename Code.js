@@ -577,30 +577,127 @@ function getBookingById(bookingId) {
 
 /*****************************************************************
  * DELETE BOOKING
- * (Placeholder - implement later)
  *****************************************************************/
 
 function deleteBooking(bookingId) {
 
-  return failure(
+  try {
 
-    "Delete Booking will be added in the next version."
+    if (!bookingId) {
+      return failure("Booking ID is required.");
+    }
 
-  );
+    const existing = findOne(
+      APP.SHEETS.BOOKINGS,
+      "BookingID",
+      bookingId
+    );
+
+    if (!existing) {
+      return failure("Booking not found.");
+    }
+
+    const deleted = remove(
+      APP.SHEETS.BOOKINGS,
+      "BookingID",
+      bookingId
+    );
+
+    if (!deleted) {
+      return failure("Failed to delete booking.");
+    }
+
+    writeLog(
+      "DELETE_BOOKING",
+      "Deleted booking: " + existing.BookingNo
+    );
+
+    return success(
+      "Booking Deleted Successfully"
+    );
+
+  }
+  catch (e) {
+
+    return failure(e.message);
+
+  }
 
 }
 
 /*****************************************************************
  * EDIT BOOKING
- * (Placeholder - implement later)
  *****************************************************************/
 
 function updateBooking(data) {
 
-  return failure(
+  try {
 
-    "Edit Booking will be added in the next version."
+    if (!data.bookingId)
+      return failure("Booking ID is required.");
 
-  );
+    if (!data.customerName)
+      return failure("Customer Name is required.");
+
+    if (!data.mobile)
+      return failure("Mobile Number is required.");
+
+    if (!data.eventType)
+      return failure("Event Type is required.");
+
+    if (!data.eventDate)
+      return failure("Event Date is required.");
+
+    const existing = findOne(
+      APP.SHEETS.BOOKINGS,
+      "BookingID",
+      data.bookingId
+    );
+
+    if (!existing) {
+      return failure("Booking not found.");
+    }
+
+    const customerId = createCustomer(data);
+
+    const updated = update(
+      APP.SHEETS.BOOKINGS,
+      "BookingID",
+      data.bookingId,
+      {
+        CustomerID: customerId,
+        CustomerName: data.customerName,
+        Mobile: data.mobile,
+        AlternateMobile: data.alternateMobile,
+        EventType: data.eventType,
+        EventDate: data.eventDate,
+        EventTime: data.eventTime,
+        Venue: data.venue,
+        Requirement: data.requirement,
+        Budget: Number(data.budget || 0),
+        GoogleMap: data.googleMap,
+        AdvanceAmount: Number(data.advanceAmount || 0),
+        BalanceAmount: Number(data.balanceAmount || 0),
+        PaymentStatus: data.paymentStatus,
+        BookingStatus: data.bookingStatus,
+        Remarks: data.remarks || ""
+      }
+    );
+
+    if (!updated) {
+      return failure("Failed to update booking.");
+    }
+
+    return success(
+      "Booking Updated Successfully",
+      { BookingID: data.bookingId }
+    );
+
+  }
+  catch (e) {
+
+    return failure(e.message);
+
+  }
 
 }

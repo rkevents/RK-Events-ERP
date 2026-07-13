@@ -338,6 +338,7 @@ function showBookings() {
  * BOOKING MODAL
  ******************************************************/
 let bookingModal = null;
+let currentBookingId = null;
 
 function openBookingForm() {
 
@@ -364,6 +365,11 @@ function openBookingForm() {
 
     clearBookingForm();
 
+    currentBookingId = null;
+
+    document.querySelector("#bookingModal .modal-title").innerHTML =
+        '<i class="bi bi-calendar-plus me-2"></i>New Booking';
+
     bookingModal.show();
 
 }
@@ -375,6 +381,8 @@ function closeBookingForm() {
         bookingModal.hide();
 
     }
+
+    currentBookingId = null;
 
 }
 
@@ -425,6 +433,58 @@ function clearBookingForm() {
         }
 
     });
+
+}
+
+/******************************************************
+ * POPULATE BOOKING FORM
+ ******************************************************/
+function populateBookingForm(booking) {
+
+    document.getElementById("customerName").value =
+        booking.CustomerName || "";
+
+    document.getElementById("mobile").value =
+        booking.Mobile || "";
+
+    document.getElementById("alternateMobile").value =
+        booking.AlternateMobile || "";
+
+    document.getElementById("eventType").value =
+        booking.EventType || "Wedding";
+
+    document.getElementById("eventDate").value =
+        booking.EventDate || "";
+
+    document.getElementById("eventTime").value =
+        booking.EventTime || "";
+
+    document.getElementById("venue").value =
+        booking.Venue || "";
+
+    document.getElementById("requirement").value =
+        booking.Requirement || "";
+
+    document.getElementById("budget").value =
+        booking.Budget || 0;
+
+    document.getElementById("googleMap").value =
+        booking.GoogleMap || "";
+
+    document.getElementById("advanceAmount").value =
+        booking.AdvanceAmount || 0;
+
+    document.getElementById("balanceAmount").value =
+        booking.BalanceAmount || 0;
+
+    document.getElementById("paymentStatus").value =
+        booking.PaymentStatus || "Pending";
+
+    document.getElementById("bookingStatus").value =
+        booking.BookingStatus || "New";
+
+    document.getElementById("remarks").value =
+        booking.Remarks || "";
 
 }
 
@@ -499,11 +559,25 @@ async function saveBooking() {
 
     try {
 
-        const result =
-            await callServer(
+        let result;
+
+        if (currentBookingId) {
+
+            booking.bookingId = currentBookingId;
+
+            result = await callServer(
+                "updateBooking",
+                booking
+            );
+
+        } else {
+
+            result = await callServer(
                 "saveBooking",
                 booking
             );
+
+        }
 
         if (!result.success) {
 
@@ -523,6 +597,8 @@ async function saveBooking() {
             bookingModal.hide();
 
         }
+
+        currentBookingId = null;
 
         await loadBookings();
 
@@ -731,15 +807,43 @@ async function editBooking(id) {
 
         }
 
-        showToast(
-            "Edit module will be completed in Sprint 2.",
-            "warning"
-        );
+        const modal =
+            document.getElementById("bookingModal");
+
+        if (!modal) {
+
+            showToast(
+                "Booking form not found.",
+                "danger"
+            );
+
+            return;
+
+        }
+
+        bookingModal =
+            bootstrap.Modal.getOrCreateInstance(modal);
+
+        clearBookingForm();
+
+        populateBookingForm(result.data);
+
+        currentBookingId = id;
+
+        document.querySelector("#bookingModal .modal-title").innerHTML =
+            '<i class="bi bi-pencil-square me-2"></i>Edit Booking';
+
+        bookingModal.show();
 
     }
     catch (e) {
 
         console.error(e);
+
+        showToast(
+            e.message || "Unable to load booking.",
+            "danger"
+        );
 
     }
 
@@ -758,15 +862,38 @@ async function deleteBooking(id) {
 
     try {
 
-        showToast(
-            "Delete module will be completed in Sprint 2.",
-            "warning"
-        );
+        const result =
+            await callServer(
+                "deleteBooking",
+                id
+            );
+
+        if (!result.success) {
+
+            showToast(
+                result.message,
+                "danger"
+            );
+
+            return;
+
+        }
+
+        showToast(result.message);
+
+        await loadBookings();
+
+        await loadDashboard();
 
     }
     catch (e) {
 
         console.error(e);
+
+        showToast(
+            e.message || "Unable to delete booking.",
+            "danger"
+        );
 
     }
 
