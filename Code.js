@@ -625,6 +625,9 @@ function deleteBooking(bookingId) {
 
     const customerId = existing.CustomerID;
 
+    Logger.log("DELETE: CustomerID = " + customerId);
+    Logger.log("DELETE: Deleting booking " + bookingId);
+
     const deleted = remove(
       APP.SHEETS.BOOKINGS,
       "BookingID",
@@ -635,24 +638,32 @@ function deleteBooking(bookingId) {
       return failure("Failed to delete booking.");
     }
 
+    Logger.log("DELETE: Booking deleted successfully");
+
     const remainingBookings = filterRecords(
       APP.SHEETS.BOOKINGS,
       function(booking) {
-        return booking.CustomerID === customerId;
+        return booking.CustomerID == customerId;
       }
     );
 
+    Logger.log("DELETE: Remaining bookings for customer = " + remainingBookings.length);
+
     if (remainingBookings.length === 0) {
-      remove(
+      Logger.log("DELETE: No remaining bookings, deleting customer " + customerId);
+      const customerDeleted = remove(
         APP.SHEETS.CUSTOMERS,
         "CustomerID",
         customerId
       );
+      Logger.log("DELETE: Customer deletion result = " + customerDeleted);
+    } else {
+      Logger.log("DELETE: Customer has " + remainingBookings.length + " remaining bookings, keeping customer");
     }
 
     writeLog(
       "DELETE_BOOKING",
-      "Deleted booking: " + existing.BookingNo
+      "Deleted booking: " + existing.BookingNo + ", Customer: " + customerId + ", Remaining: " + remainingBookings.length
     );
 
     return success(
