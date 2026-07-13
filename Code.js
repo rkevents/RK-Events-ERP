@@ -403,31 +403,25 @@ function searchCustomerByMobile(mobile) {
       });
     }
 
-    Logger.log("=== VERSION: 2024-07-14-00:34 ===");
-    Logger.log("Customer details: " + JSON.stringify(customer));
+    Logger.log("Customer found - CustomerID: " + customer.CustomerID + ", Name: " + customer.CustomerName);
 
-    Logger.log("Fetching bookings for CustomerID: " + customer.CustomerID);
-    
     const allBookings = getAll(APP.SHEETS.BOOKINGS);
-    Logger.log("Total bookings in sheet: " + allBookings.length);
+    const normalizedBookings = allBookings.map(normalizeBookingObject);
+    
+    Logger.log("Total bookings in sheet: " + normalizedBookings.length);
     
     const bookings = [];
     const targetCustomerId = String(customer.CustomerID || "").trim();
     
-    Logger.log("Looking for exact CustomerID: '" + targetCustomerId + "'");
-    
-    allBookings.forEach(function(b, idx) {
+    normalizedBookings.forEach(function(b) {
       const bookingCustomerId = String(b.CustomerID || "").trim();
       
-      Logger.log("Booking " + idx + " - CustomerID: '" + bookingCustomerId + "'");
-      
       if (bookingCustomerId === targetCustomerId) {
-        Logger.log("  -> MATCH! Adding to results");
         bookings.push(b);
       }
     });
 
-    Logger.log("Bookings found for customer: " + bookings.length);
+    Logger.log("Bookings matched for CustomerID " + targetCustomerId + ": " + bookings.length);
 
     const totalBookings = bookings.length;
     
@@ -444,21 +438,17 @@ function searchCustomerByMobile(mobile) {
       
       lastEventDate = bookings[0].EventDate;
       
-      Logger.log("Latest EventDate: " + lastEventDate);
-      
       eventTypes = [];
       bookings.forEach(function(b) {
         if (b.EventType && eventTypes.indexOf(b.EventType) === -1) {
           eventTypes.push(b.EventType);
-          Logger.log("Found EventType: " + b.EventType);
         }
       });
     }
     
-    Logger.log("Total Bookings: " + totalBookings);
-    Logger.log("Event Types: " + eventTypes.join(", "));
+    Logger.log("Customer History - Total: " + totalBookings + ", Events: " + eventTypes.join(", ") + ", Latest: " + lastEventDate);
 
-    Logger.log("Returning EXISTING customer with history");
+    Logger.log("Returning customer history");
 
     const formatDateValue = function(value) {
       if (!value) return "";
@@ -467,8 +457,8 @@ function searchCustomerByMobile(mobile) {
       }
       return String(value);
     };
-
-    return success("Existing Customer", {
+    
+    const returnObject = {
       exists: true,
       isNew: false,
       customer: {
@@ -486,7 +476,9 @@ function searchCustomerByMobile(mobile) {
         lastEventDate: formatDateValue(lastEventDate),
         eventTypes: eventTypes.join(", ")
       }
-    });
+    };
+
+    return success("Existing Customer", returnObject);
 
   } catch (e) {
     Logger.log("ERROR in searchCustomerByMobile: " + e.message);
@@ -498,6 +490,86 @@ function searchCustomerByMobile(mobile) {
 /**
  * Generate Customer ID
  */
+/*****************************************************************
+ * DEBUG UTILITY - TEST CUSTOMER HISTORY
+ *****************************************************************/
+
+/**
+ * Test function to verify customer history calculation
+ * Run this from Apps Script to debug
+ * 
+ * USAGE: Change the mobile number below and click Run
+ */
+function testCustomerHistory() {
+  
+  // ⚠️ CHANGE THIS TO YOUR TEST MOBILE NUMBER ⚠️
+  const mobile = "7358390899";  
+  
+  Logger.log("=== TEST CUSTOMER HISTORY ===");
+  Logger.log("Testing mobile: " + mobile);
+  
+  const result = searchCustomerByMobile(mobile);
+  
+  Logger.log("Result success: " + result.success);
+  
+  if (result.data) {
+    Logger.log("Result data: " + JSON.stringify(result.data));
+    
+    if (result.data.history) {
+      const history = result.data.history;
+      Logger.log("--- HISTORY DETAILS ---");
+      Logger.log("Total Bookings: " + history.totalBookings);
+      Logger.log("Last Event Date: " + history.lastEventDate);
+      Logger.log("Previous Events: " + history.eventTypes);
+      Logger.log("Customer Since: " + history.customerSince);
+    }
+  }
+  
+  return result;
+  
+}
+
+/**
+ * Normalize object keys to match expected property names
+ * Handles case-insensitive matching of common booking properties
+ */
+function normalizeBookingObject(obj) {
+  
+  const normalized = {};
+  
+  const keyMap = {
+    'bookingid': 'BookingID',
+    'bookingno': 'BookingNo',
+    'customerid': 'CustomerID',
+    'customername': 'CustomerName',
+    'mobile': 'Mobile',
+    'alternatemobile': 'AlternateMobile',
+    'eventtype': 'EventType',
+    'eventdate': 'EventDate',
+    'eventtime': 'EventTime',
+    'venue': 'Venue',
+    'requirement': 'Requirement',
+    'budget': 'Budget',
+    'googlemap': 'GoogleMap',
+    'advanceamount': 'AdvanceAmount',
+    'balanceamount': 'BalanceAmount',
+    'paymentstatus': 'PaymentStatus',
+    'bookingstatus': 'BookingStatus',
+    'remarks': 'Remarks',
+    'createdon': 'CreatedOn',
+    'createdby': 'CreatedBy'
+  };
+  
+  Object.keys(obj).forEach(function(key) {
+    const lowerKey = String(key).trim().toLowerCase();
+    const standardKey = keyMap[lowerKey] || key;
+    normalized[standardKey] = obj[key];
+  });
+  
+  return normalized;
+  
+}
+
 /*****************************************************************
  * ID GENERATION - SEQUENTIAL FORMAT
  *****************************************************************/
