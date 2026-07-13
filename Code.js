@@ -181,17 +181,20 @@ function runCleanup() {
   const ui = SpreadsheetApp.getUi();
   
   const response = ui.alert(
-    'Clear All Data',
+    'Reset Development Data',
     'This will delete ALL bookings and customers. Are you sure?',
     ui.ButtonSet.YES_NO
   );
   
   if (response == ui.Button.YES) {
     
-    const result = clearAllBookingsAndCustomers();
+    const result = resetDevelopmentData();
     
     if (result.success) {
-      ui.alert('✅ Success', result.message, ui.ButtonSet.OK);
+      const data = result.data || {};
+      const msg = 'Deleted:\n• Bookings: ' + (data.bookingsDeleted || 0) + 
+                  '\n• Customers: ' + (data.customersDeleted || 0);
+      ui.alert('✅ Success', msg, ui.ButtonSet.OK);
     } else {
       ui.alert('❌ Error', result.message, ui.ButtonSet.OK);
     }
@@ -217,13 +220,21 @@ function showAbout() {
 
 function doGet(e){
 
-  if (e && e.parameter && e.parameter.action === 'cleanup') {
+  if (e && e.parameter) {
     
-    const result = clearAllBookingsAndCustomers();
+    if (e.parameter.page === 'admin') {
+      return HtmlService
+        .createHtmlOutputFromFile("admin")
+        .setTitle("RK Events - Admin Panel")
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    }
     
-    return ContentService
-      .createTextOutput(JSON.stringify(result))
-      .setMimeType(ContentService.MimeType.JSON);
+    if (e.parameter.action === 'reset') {
+      const result = resetDevelopmentData();
+      return ContentService
+        .createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
       
   }
 
@@ -999,51 +1010,85 @@ function updateBooking(data) {
 }
 
 /*****************************************************************
- * ADMIN UTILITY - CLEAR ALL DATA
+ * ADMIN UTILITY - RESET DEVELOPMENT DATA
  *****************************************************************/
 
-function clearAllBookingsAndCustomers() {
+/**
+ * Permanent Admin Utility - Reset Development Database
+ * Clears all test data from Bookings and Customers sheets
+ * Preserves headers and sheet structure
+ * @returns {Object} Result with success status and message
+ */
+function resetDevelopmentData() {
   
   try {
     
-    Logger.log("Starting data cleanup...");
+    Logger.log("=== RESET DEVELOPMENT DATA ===");
+    Logger.log("Timestamp: " + new Date().toISOString());
     
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
     const bookingsSheet = ss.getSheetByName(APP.SHEETS.BOOKINGS);
     const customersSheet = ss.getSheetByName(APP.SHEETS.CUSTOMERS);
     
+    let bookingsDeleted = 0;
+    let customersDeleted = 0;
+    
     if (bookingsSheet) {
       const lastRow = bookingsSheet.getLastRow();
+      Logger.log("Bookings sheet - Last row: " + lastRow);
+      
       if (lastRow > 1) {
         bookingsSheet.deleteRows(2, lastRow - 1);
-        Logger.log("Cleared " + (lastRow - 1) + " bookings");
+        bookingsDeleted = lastRow - 1;
+        Logger.log("✓ Deleted " + bookingsDeleted + " booking rows");
+      } else {
+        Logger.log("✓ Bookings already empty");
       }
+    } else {
+      Logger.log("✗ Bookings sheet not found");
     }
     
     if (customersSheet) {
       const lastRow = customersSheet.getLastRow();
+      Logger.log("Customers sheet - Last row: " + lastRow);
+      
       if (lastRow > 1) {
         customersSheet.deleteRows(2, lastRow - 1);
-        Logger.log("Cleared " + (lastRow - 1) + " customers");
+        customersDeleted = lastRow - 1;
+        Logger.log("✓ Deleted " + customersDeleted + " customer rows");
+      } else {
+        Logger.log("✓ Customers already empty");
       }
+    } else {
+      Logger.log("✗ Customers sheet not found");
     }
     
-    Logger.log("Data cleanup completed!");
+    Logger.log("=== CLEANUP COMPLETE ===");
+    Logger.log("Bookings deleted: " + bookingsDeleted);
+    Logger.log("Customers deleted: " + customersDeleted);
     
-    return {
-      success: true,
-      message: "All bookings and customers cleared successfully"
-    };
+    return success("Development data reset successfully", {
+      bookingsDeleted: bookingsDeleted,
+      customersDeleted: customersDeleted,
+      timestamp: new Date().toISOString()
+    });
     
   } catch (e) {
     
-    Logger.log("Error during cleanup: " + e.message);
-    return {
-      success: false,
-      message: "Error: " + e.message
-    };
+    Logger.log("✗ Error during cleanup: " + e.message);
+    Logger.log("Stack trace: " + e.stack);
+    
+    return failure("Cleanup failed: " + e.message);
     
   }
   
+}
+
+/**
+ * Legacy function - calls resetDevelopmentData()
+ * @deprecated Use resetDevelopmentData() instead
+ */
+function clearAllBookingsAndCustomers() {
+  return resetDevelopmentData();
 }
