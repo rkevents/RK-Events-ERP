@@ -302,9 +302,72 @@ function getDashboardSummary(){
  *****************************************************************/
 
 /**
+ * Normalize Mobile Number
+ * Strips all non-digit characters and validates format
+ * @param {string} mobile - Raw mobile number
+ * @returns {string} Normalized 10-digit mobile or empty string if invalid
+ */
+function normalizeMobile(mobile) {
+  
+  if (!mobile) return "";
+  
+  const digits = String(mobile).replace(/[^0-9]/g, '');
+  
+  if (digits.length !== 10) return "";
+  
+  return digits;
+  
+}
+
+/**
+ * Validate Customer Data
+ * Ensures mobile uniqueness and data integrity
+ * @param {Object} data - Customer data
+ * @param {string} excludeCustomerId - CustomerID to exclude from duplicate check (for updates)
+ * @returns {Object} {valid: boolean, error: string}
+ */
+function validateCustomerData(data, excludeCustomerId) {
+  
+  const mobile = normalizeMobile(data.mobile);
+  
+  if (!mobile) {
+    return {
+      valid: false,
+      error: "Mobile number must be exactly 10 digits (numbers only)"
+    };
+  }
+  
+  if (!data.customerName || !data.customerName.trim()) {
+    return {
+      valid: false,
+      error: "Customer name is required"
+    };
+  }
+  
+  const existingCustomer = findCustomerByMobile(mobile);
+  
+  if (existingCustomer && existingCustomer.CustomerID !== excludeCustomerId) {
+    return {
+      valid: false,
+      error: "Mobile number " + mobile + " is already registered to " + existingCustomer.CustomerName
+    };
+  }
+  
+  return {
+    valid: true,
+    normalizedMobile: mobile
+  };
+  
+}
+
+/**
  * Find Customer by Mobile
  */
 function findCustomerByMobile(mobile){
+
+  const normalizedMobile = normalizeMobile(mobile);
+  
+  if (!normalizedMobile) return null;
 
   const customers =
     getAll(APP.SHEETS.CUSTOMERS);
@@ -312,8 +375,7 @@ function findCustomerByMobile(mobile){
   const customer =
     customers.find(function(c){
 
-      return String(c.Mobile).trim() ==
-             String(mobile).trim();
+      return normalizeMobile(c.Mobile) === normalizedMobile;
 
     });
 
@@ -330,23 +392,18 @@ function searchCustomerByMobile(mobile) {
 
     Logger.log("=== SEARCH CUSTOMER BY MOBILE ===");
     Logger.log("Mobile received: " + mobile);
-    Logger.log("Mobile type: " + typeof mobile);
-    Logger.log("Mobile length: " + String(mobile).length);
-    Logger.log("Mobile trimmed length: " + String(mobile).trim().length);
 
-    const trimmedMobile = String(mobile).trim();
-    const digitsOnly = trimmedMobile.replace(/[^0-9]/g, '');
+    const normalizedMobile = normalizeMobile(mobile);
 
-    Logger.log("Digits only: " + digitsOnly);
-    Logger.log("Digits length: " + digitsOnly.length);
+    Logger.log("Normalized mobile: " + normalizedMobile);
 
-    if (!digitsOnly || digitsOnly.length !== 10) {
+    if (!normalizedMobile) {
       Logger.log("Validation failed: Invalid mobile number");
       return failure("Invalid mobile number");
     }
 
     Logger.log("Calling findCustomerByMobile()");
-    const customer = findCustomerByMobile(digitsOnly);
+    const customer = findCustomerByMobile(normalizedMobile);
 
     Logger.log("Customer found: " + (customer ? "YES" : "NO"));
 
@@ -467,13 +524,23 @@ function generateCustomerId(){
 
 /**
  * Create Customer Automatically
+ * BUSINESS RULE: Mobile Number is unique - one mobile = one customer
+ * If mobile exists, reuse CustomerID and update details
+ * If mobile is new, create new customer with new CustomerID
  */
 function createCustomer(data){
 
-  const existing =
-      findCustomerByMobile(data.mobile);
+  const normalizedMobile = normalizeMobile(data.mobile);
+  
+  if (!normalizedMobile) {
+    throw new Error("Invalid mobile number format");
+  }
+
+  const existing = findCustomerByMobile(normalizedMobile);
 
   if(existing){
+
+      Logger.log("Customer exists - Reusing CustomerID: " + existing.CustomerID);
 
       update(
         APP.SHEETS.CUSTOMERS,
@@ -481,7 +548,7 @@ function createCustomer(data){
         existing.CustomerID,
         {
           CustomerName: data.customerName,
-          Mobile: data.mobile,
+          Mobile: normalizedMobile,
           AlternateMobile: data.alternateMobile || ""
         }
       );
@@ -490,8 +557,9 @@ function createCustomer(data){
 
   }
 
-  const customerId =
-      generateCustomerId();
+  const customerId = generateCustomerId();
+  
+  Logger.log("Creating new customer - CustomerID: " + customerId + ", Mobile: " + normalizedMobile);
 
   insert(
 
@@ -503,7 +571,7 @@ function createCustomer(data){
 
         CustomerName : data.customerName,
 
-        Mobile : data.mobile,
+        Mobile : normalizedMobile,
 
         AlternateMobile :
             data.alternateMobile || "",
@@ -566,16 +634,18 @@ function saveBooking(data){
     if(!data.mobile)
       return failure("Mobile Number is required.");
 
-    const mobileDigits = String(data.mobile).replace(/[^0-9]/g, '');
+    const normalizedMobile = normalizeMobile(data.mobile);
     
-    if(mobileDigits.length !== 10)
-      return failure("Mobile Number must be exactly 10 digits.");
+    if(!normalizedMobile)
+      return failure("Mobile Number must be exactly 10 digits (numbers only).");
 
     if(!data.eventType)
       return failure("Event Type is required.");
 
     if(!data.eventDate)
       return failure("Event Date is required.");
+
+    data.mobile = normalizedMobile;
 
     const customerId =
       createCustomer(data);
@@ -600,7 +670,7 @@ function saveBooking(data){
 
         CustomerName : data.customerName,
 
-        Mobile : data.mobile,
+        Mobile : normalizedMobile,
 
         AlternateMobile :
           data.alternateMobile,
@@ -1011,6 +1081,146 @@ function resetDevelopmentData() {
       success: false,
       bookingsDeleted: 0,
       customersDeleted: 0
+    };
+    
+  }
+  
+}
+
+/*****************************************************************
+ * ADMIN UTILITY - REPAIR DATABASE INTEGRITY
+ *****************************************************************/
+
+/**
+ * Repairs database integrity issues
+ * Fixes duplicate CustomerIDs, duplicate mobiles, and inconsistent data
+ * Rebuilds Customer Master as single source of truth
+ * @returns {Object} Repair report
+ */
+function repairDatabase() {
+  
+  try {
+    
+    Logger.log("=== DATABASE REPAIR STARTED ===");
+    Logger.log("Timestamp: " + new Date().toISOString());
+    
+    const bookings = getAll(APP.SHEETS.BOOKINGS);
+    
+    Logger.log("Total bookings found: " + bookings.length);
+    
+    const mobileGroups = {};
+    
+    bookings.forEach(function(booking) {
+      const mobile = normalizeMobile(booking.Mobile);
+      
+      if (!mobile) {
+        Logger.log("WARNING: Booking " + booking.BookingNo + " has invalid mobile");
+        return;
+      }
+      
+      if (!mobileGroups[mobile]) {
+        mobileGroups[mobile] = {
+          mobile: mobile,
+          bookings: [],
+          customerNames: [],
+          customerIds: []
+        };
+      }
+      
+      mobileGroups[mobile].bookings.push(booking);
+      
+      if (booking.CustomerName && mobileGroups[mobile].customerNames.indexOf(booking.CustomerName) === -1) {
+        mobileGroups[mobile].customerNames.push(booking.CustomerName);
+      }
+      
+      if (booking.CustomerID && mobileGroups[mobile].customerIds.indexOf(booking.CustomerID) === -1) {
+        mobileGroups[mobile].customerIds.push(booking.CustomerID);
+      }
+    });
+    
+    Logger.log("Unique mobile numbers found: " + Object.keys(mobileGroups).length);
+    
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const customersSheet = ss.getSheetByName(APP.SHEETS.CUSTOMERS);
+    const bookingsSheet = ss.getSheetByName(APP.SHEETS.BOOKINGS);
+    
+    customersSheet.deleteRows(2, Math.max(1, customersSheet.getLastRow() - 1));
+    Logger.log("Cleared existing customer master");
+    
+    let customersCreated = 0;
+    let bookingsUpdated = 0;
+    let duplicateMobilesFixed = 0;
+    let duplicateCustomerIdsFixed = 0;
+    
+    Object.keys(mobileGroups).forEach(function(mobile) {
+      const group = mobileGroups[mobile];
+      
+      if (group.customerNames.length > 1) {
+        Logger.log("WARNING: Multiple names for mobile " + mobile + ": " + group.customerNames.join(", "));
+        duplicateMobilesFixed++;
+      }
+      
+      if (group.customerIds.length > 1) {
+        Logger.log("WARNING: Multiple CustomerIDs for mobile " + mobile + ": " + group.customerIds.join(", "));
+        duplicateCustomerIdsFixed++;
+      }
+      
+      const primaryCustomerName = group.customerNames[0] || "Unknown";
+      const newCustomerId = generateCustomerId();
+      
+      const customerRow = {
+        CustomerID: newCustomerId,
+        CustomerName: primaryCustomerName,
+        Mobile: mobile,
+        AlternateMobile: "",
+        Email: "",
+        Address: "",
+        Status: "Active",
+        CreatedOn: now()
+      };
+      
+      insert(APP.SHEETS.CUSTOMERS, customerRow);
+      customersCreated++;
+      
+      Logger.log("Created customer: " + newCustomerId + " for mobile " + mobile);
+      
+      group.bookings.forEach(function(booking) {
+        update(
+          APP.SHEETS.BOOKINGS,
+          "BookingID",
+          booking.BookingID,
+          {
+            CustomerID: newCustomerId,
+            CustomerName: primaryCustomerName,
+            Mobile: mobile
+          }
+        );
+        bookingsUpdated++;
+      });
+    });
+    
+    Logger.log("=== DATABASE REPAIR COMPLETE ===");
+    Logger.log("Customers created: " + customersCreated);
+    Logger.log("Bookings updated: " + bookingsUpdated);
+    Logger.log("Duplicate mobiles fixed: " + duplicateMobilesFixed);
+    Logger.log("Duplicate CustomerIDs fixed: " + duplicateCustomerIdsFixed);
+    
+    return {
+      success: true,
+      customersCreated: customersCreated,
+      bookingsUpdated: bookingsUpdated,
+      duplicateMobilesFixed: duplicateMobilesFixed,
+      duplicateCustomerIdsFixed: duplicateCustomerIdsFixed
+    };
+    
+  } catch (e) {
+    
+    Logger.log("ERROR during repair: " + e.message);
+    Logger.log("Stack trace: " + e.stack);
+    
+    return {
+      success: false,
+      error: e.message
     };
     
   }
