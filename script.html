@@ -339,6 +339,7 @@ function showBookings() {
  ******************************************************/
 let bookingModal = null;
 let currentBookingId = null;
+let isViewMode = false;
 
 function openBookingForm() {
 
@@ -366,6 +367,9 @@ function openBookingForm() {
     clearBookingForm();
 
     currentBookingId = null;
+    isViewMode = false;
+
+    enableFormFields();
 
     document.querySelector("#bookingModal .modal-title").innerHTML =
         '<i class="bi bi-calendar-plus me-2"></i>New Booking';
@@ -383,6 +387,85 @@ function closeBookingForm() {
     }
 
     currentBookingId = null;
+    isViewMode = false;
+
+    enableFormFields();
+
+}
+
+function disableFormFields() {
+
+    [
+        "customerName",
+        "mobile",
+        "alternateMobile",
+        "eventType",
+        "eventDate",
+        "eventTime",
+        "venue",
+        "requirement",
+        "budget",
+        "googleMap",
+        "advanceAmount",
+        "balanceAmount",
+        "paymentStatus",
+        "bookingStatus",
+        "remarks"
+    ].forEach(function (id) {
+
+        const el = document.getElementById(id);
+
+        if (el) {
+            el.disabled = true;
+        }
+
+    });
+
+    const saveBtn = document.querySelector(
+        "#bookingModal .modal-footer .btn-primary"
+    );
+
+    if (saveBtn) {
+        saveBtn.style.display = "none";
+    }
+
+}
+
+function enableFormFields() {
+
+    [
+        "customerName",
+        "mobile",
+        "alternateMobile",
+        "eventType",
+        "eventDate",
+        "eventTime",
+        "venue",
+        "requirement",
+        "budget",
+        "googleMap",
+        "advanceAmount",
+        "balanceAmount",
+        "paymentStatus",
+        "bookingStatus",
+        "remarks"
+    ].forEach(function (id) {
+
+        const el = document.getElementById(id);
+
+        if (el) {
+            el.disabled = false;
+        }
+
+    });
+
+    const saveBtn = document.querySelector(
+        "#bookingModal .modal-footer .btn-primary"
+    );
+
+    if (saveBtn) {
+        saveBtn.style.display = "";
+    }
 
 }
 
@@ -727,6 +810,14 @@ function renderBookingTable(bookings) {
             <td>
 
                 <button
+                    class="btn btn-sm btn-info"
+                    onclick="viewBooking('${item.BookingID}')">
+
+                    <i class="bi bi-eye"></i>
+
+                </button>
+
+                <button
                     class="btn btn-sm btn-primary"
                     onclick="editBooking('${item.BookingID}')">
 
@@ -829,9 +920,81 @@ async function editBooking(id) {
         populateBookingForm(result.data);
 
         currentBookingId = id;
+        isViewMode = false;
+
+        enableFormFields();
 
         document.querySelector("#bookingModal .modal-title").innerHTML =
             '<i class="bi bi-pencil-square me-2"></i>Edit Booking';
+
+        bookingModal.show();
+
+    }
+    catch (e) {
+
+        console.error(e);
+
+        showToast(
+            e.message || "Unable to load booking.",
+            "danger"
+        );
+
+    }
+
+}
+
+/******************************************************
+ * VIEW BOOKING
+ ******************************************************/
+async function viewBooking(id) {
+
+    try {
+
+        const result =
+            await callServer(
+                "getBookingById",
+                id
+            );
+
+        if (!result.success) {
+
+            showToast(
+                result.message,
+                "danger"
+            );
+
+            return;
+
+        }
+
+        const modal =
+            document.getElementById("bookingModal");
+
+        if (!modal) {
+
+            showToast(
+                "Booking form not found.",
+                "danger"
+            );
+
+            return;
+
+        }
+
+        bookingModal =
+            bootstrap.Modal.getOrCreateInstance(modal);
+
+        clearBookingForm();
+
+        populateBookingForm(result.data);
+
+        currentBookingId = id;
+        isViewMode = true;
+
+        disableFormFields();
+
+        document.querySelector("#bookingModal .modal-title").innerHTML =
+            '<i class="bi bi-eye me-2"></i>View Booking';
 
         bookingModal.show();
 
