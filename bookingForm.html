@@ -48,7 +48,11 @@
                                 <input
                                     type="text"
                                     id="mobile"
-                                    class="form-control">
+                                    class="form-control"
+                                    maxlength="10"
+                                    onkeyup="handleMobileInput()">
+
+                                <span id="customerStatus" class="badge mt-2" style="display:none;"></span>
 
                             </div>
 
@@ -75,6 +79,32 @@
                                     type="text"
                                     id="alternateMobile"
                                     class="form-control">
+
+                            </div>
+
+                            <div class="col-12">
+
+                                <div id="customerHistory" class="alert alert-info" style="display:none;">
+                                    <strong>Customer History</strong>
+                                    <div class="row mt-2">
+                                        <div class="col-md-3">
+                                            <small class="text-muted">Customer Since</small><br>
+                                            <span id="customerSince">-</span>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted">Total Bookings</small><br>
+                                            <span id="totalBookings">0</span>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted">Last Event Date</small><br>
+                                            <span id="lastEventDate">-</span>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted">Previous Events</small><br>
+                                            <span id="previousEvents">-</span>
+                                        </div>
+                                    </div>
+                                </div>
 
                             </div>
 

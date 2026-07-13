@@ -292,6 +292,78 @@ function findCustomerByMobile(mobile){
 }
 
 /**
+ * Search Customer by Mobile with Booking History
+ */
+function searchCustomerByMobile(mobile) {
+
+  try {
+
+    if (!mobile || String(mobile).trim().length !== 10) {
+      return failure("Invalid mobile number");
+    }
+
+    const customer = findCustomerByMobile(mobile);
+
+    if (!customer) {
+      return success("New Customer", {
+        exists: false,
+        isNew: true
+      });
+    }
+
+    const bookings = filterRecords(
+      APP.SHEETS.BOOKINGS,
+      function(b) {
+        return String(b.Mobile).trim() == String(mobile).trim();
+      }
+    );
+
+    const totalBookings = bookings.length;
+    
+    let lastEventDate = "";
+    let eventTypes = [];
+    
+    if (totalBookings > 0) {
+      bookings.sort(function(a, b) {
+        return new Date(b.EventDate) - new Date(a.EventDate);
+      });
+      
+      lastEventDate = bookings[0].EventDate;
+      
+      eventTypes = bookings.map(function(b) {
+        return b.EventType;
+      }).filter(function(value, index, self) {
+        return self.indexOf(value) === index;
+      });
+    }
+
+    return success("Existing Customer", {
+      exists: true,
+      isNew: false,
+      customer: {
+        CustomerID: customer.CustomerID,
+        CustomerName: customer.CustomerName,
+        Mobile: customer.Mobile,
+        AlternateMobile: customer.AlternateMobile || "",
+        Email: customer.Email || "",
+        Address: customer.Address || "",
+        CreatedOn: customer.CreatedOn
+      },
+      history: {
+        customerSince: customer.CreatedOn,
+        totalBookings: totalBookings,
+        lastEventDate: lastEventDate,
+        eventTypes: eventTypes.join(", ")
+      }
+    });
+
+  } catch (e) {
+    return failure(e.message);
+  }
+
+}
+
+/**
  * Generate Customer ID
  */
 function generateCustomerId(){

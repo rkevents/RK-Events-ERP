@@ -523,6 +523,17 @@ function clearBookingForm() {
 
     });
 
+    const statusBadge = document.getElementById("customerStatus");
+    const historyDiv = document.getElementById("customerHistory");
+
+    if (statusBadge) {
+        statusBadge.style.display = "none";
+    }
+
+    if (historyDiv) {
+        historyDiv.style.display = "none";
+    }
+
 }
 
 /******************************************************
@@ -591,6 +602,111 @@ function calculateBalance() {
     document.getElementById(
         "balanceAmount"
     ).value = budget - advance;
+
+}
+
+/******************************************************
+ * CUSTOMER AUTO LOOKUP
+ ******************************************************/
+let lookupTimeout = null;
+
+function handleMobileInput() {
+
+    const mobile = safeValue("mobile");
+
+    clearTimeout(lookupTimeout);
+
+    const statusBadge = document.getElementById("customerStatus");
+    const historyDiv = document.getElementById("customerHistory");
+
+    if (mobile.length !== 10) {
+        if (statusBadge) statusBadge.style.display = "none";
+        if (historyDiv) historyDiv.style.display = "none";
+        return;
+    }
+
+    lookupTimeout = setTimeout(async function() {
+        await searchCustomer(mobile);
+    }, 500);
+
+}
+
+async function searchCustomer(mobile) {
+
+    try {
+
+        const result = await callServer(
+            "searchCustomerByMobile",
+            mobile
+        );
+
+        if (!result.success) {
+            return;
+        }
+
+        const statusBadge = document.getElementById("customerStatus");
+        const historyDiv = document.getElementById("customerHistory");
+
+        if (result.data.isNew) {
+
+            if (statusBadge) {
+                statusBadge.className = "badge bg-primary mt-2";
+                statusBadge.textContent = "🔵 New Customer";
+                statusBadge.style.display = "inline-block";
+            }
+
+            if (historyDiv) {
+                historyDiv.style.display = "none";
+            }
+
+            clearCustomerFields();
+
+        } else {
+
+            if (statusBadge) {
+                statusBadge.className = "badge bg-success mt-2";
+                statusBadge.textContent = "🟢 Existing Customer";
+                statusBadge.style.display = "inline-block";
+            }
+
+            populateCustomerData(result.data.customer);
+
+            if (historyDiv && result.data.history) {
+                displayCustomerHistory(result.data.history);
+                historyDiv.style.display = "block";
+            }
+
+        }
+
+    } catch (e) {
+        console.error(e);
+    }
+
+}
+
+function populateCustomerData(customer) {
+
+    document.getElementById("customerName").value =
+        customer.CustomerName || "";
+
+    document.getElementById("alternateMobile").value =
+        customer.AlternateMobile || "";
+
+}
+
+function clearCustomerFields() {
+
+    document.getElementById("customerName").value = "";
+    document.getElementById("alternateMobile").value = "";
+
+}
+
+function displayCustomerHistory(history) {
+
+    setText("customerSince", history.customerSince || "-");
+    setText("totalBookings", history.totalBookings || "0");
+    setText("lastEventDate", history.lastEventDate || "-");
+    setText("previousEvents", history.eventTypes || "-");
 
 }
 /******************************************************
