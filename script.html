@@ -610,9 +610,22 @@ function calculateBalance() {
  ******************************************************/
 let lookupTimeout = null;
 
+function handleMobilePaste(event) {
+    event.preventDefault();
+    const paste = (event.clipboardData || window.clipboardData).getData('text');
+    const digitsOnly = paste.replace(/[^0-9]/g, '');
+    const limited = digitsOnly.substring(0, 10);
+    document.getElementById('mobile').value = limited;
+    handleMobileInput();
+}
+
 function handleMobileInput() {
 
     const mobile = safeValue("mobile");
+
+    console.log("=== MOBILE INPUT ===");
+    console.log("Mobile entered:", mobile);
+    console.log("Length:", mobile.length);
 
     clearTimeout(lookupTimeout);
 
@@ -620,18 +633,25 @@ function handleMobileInput() {
     const historyDiv = document.getElementById("customerHistory");
 
     if (mobile.length !== 10) {
+        console.log("Mobile length not 10, hiding status");
         if (statusBadge) statusBadge.style.display = "none";
         if (historyDiv) historyDiv.style.display = "none";
         return;
     }
 
+    console.log("Mobile is 10 digits, triggering lookup in 500ms...");
+
     lookupTimeout = setTimeout(async function() {
+        console.log("Timeout executed, calling searchCustomer()");
         await searchCustomer(mobile);
     }, 500);
 
 }
 
 async function searchCustomer(mobile) {
+
+    console.log("=== SEARCH CUSTOMER ===");
+    console.log("Calling backend with mobile:", mobile);
 
     try {
 
@@ -640,19 +660,31 @@ async function searchCustomer(mobile) {
             mobile
         );
 
+        console.log("Backend response received:");
+        console.log("Success:", result.success);
+        console.log("Message:", result.message);
+        console.log("Data:", result.data);
+
         if (!result.success) {
+            console.error("Search failed:", result.message);
             return;
         }
 
         const statusBadge = document.getElementById("customerStatus");
         const historyDiv = document.getElementById("customerHistory");
 
+        console.log("Is New Customer:", result.data.isNew);
+        console.log("Exists:", result.data.exists);
+
         if (result.data.isNew) {
+
+            console.log("=== NEW CUSTOMER PATH ===");
 
             if (statusBadge) {
                 statusBadge.className = "badge bg-primary mt-2";
                 statusBadge.textContent = "🔵 New Customer";
                 statusBadge.style.display = "inline-block";
+                console.log("Badge set to: New Customer");
             }
 
             if (historyDiv) {
@@ -663,10 +695,15 @@ async function searchCustomer(mobile) {
 
         } else {
 
+            console.log("=== EXISTING CUSTOMER PATH ===");
+            console.log("Customer data:", result.data.customer);
+            console.log("History data:", result.data.history);
+
             if (statusBadge) {
                 statusBadge.className = "badge bg-success mt-2";
                 statusBadge.textContent = "🟢 Existing Customer";
                 statusBadge.style.display = "inline-block";
+                console.log("Badge set to: Existing Customer");
             }
 
             populateCustomerData(result.data.customer);
@@ -674,11 +711,13 @@ async function searchCustomer(mobile) {
             if (historyDiv && result.data.history) {
                 displayCustomerHistory(result.data.history);
                 historyDiv.style.display = "block";
+                console.log("History displayed");
             }
 
         }
 
     } catch (e) {
+        console.error("=== ERROR IN SEARCH ===");
         console.error(e);
     }
 
@@ -686,27 +725,58 @@ async function searchCustomer(mobile) {
 
 function populateCustomerData(customer) {
 
-    document.getElementById("customerName").value =
-        customer.CustomerName || "";
+    console.log("=== POPULATE CUSTOMER DATA ===");
+    console.log("Customer object:", customer);
 
-    document.getElementById("alternateMobile").value =
-        customer.AlternateMobile || "";
+    const nameField = document.getElementById("customerName");
+    const altMobileField = document.getElementById("alternateMobile");
+
+    if (nameField) {
+        nameField.value = customer.CustomerName || "";
+        console.log("Set customerName to:", customer.CustomerName);
+    } else {
+        console.error("customerName field not found!");
+    }
+
+    if (altMobileField) {
+        altMobileField.value = customer.AlternateMobile || "";
+        console.log("Set alternateMobile to:", customer.AlternateMobile);
+    } else {
+        console.error("alternateMobile field not found!");
+    }
 
 }
 
 function clearCustomerFields() {
 
-    document.getElementById("customerName").value = "";
-    document.getElementById("alternateMobile").value = "";
+    console.log("=== CLEAR CUSTOMER FIELDS ===");
+
+    const nameField = document.getElementById("customerName");
+    const altMobileField = document.getElementById("alternateMobile");
+
+    if (nameField) {
+        nameField.value = "";
+        console.log("Cleared customerName");
+    }
+
+    if (altMobileField) {
+        altMobileField.value = "";
+        console.log("Cleared alternateMobile");
+    }
 
 }
 
 function displayCustomerHistory(history) {
 
+    console.log("=== DISPLAY CUSTOMER HISTORY ===");
+    console.log("History object:", history);
+
     setText("customerSince", history.customerSince || "-");
     setText("totalBookings", history.totalBookings || "0");
     setText("lastEventDate", history.lastEventDate || "-");
     setText("previousEvents", history.eventTypes || "-");
+
+    console.log("History displayed successfully");
 
 }
 /******************************************************

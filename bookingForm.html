@@ -50,7 +50,12 @@
                                     id="mobile"
                                     class="form-control"
                                     maxlength="10"
-                                    onkeyup="handleMobileInput()">
+                                    pattern="[0-9]*"
+                                    inputmode="numeric"
+                                    onkeypress="return event.charCode >= 48 && event.charCode <= 57"
+                                    onpaste="handleMobilePaste(event)"
+                                    onkeyup="handleMobileInput()"
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')">
 
                                 <span id="customerStatus" class="badge mt-2" style="display:none;"></span>
 

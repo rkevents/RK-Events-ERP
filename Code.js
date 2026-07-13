@@ -298,25 +298,47 @@ function searchCustomerByMobile(mobile) {
 
   try {
 
-    if (!mobile || String(mobile).trim().length !== 10) {
+    Logger.log("=== SEARCH CUSTOMER BY MOBILE ===");
+    Logger.log("Mobile received: " + mobile);
+    Logger.log("Mobile type: " + typeof mobile);
+    Logger.log("Mobile length: " + String(mobile).length);
+    Logger.log("Mobile trimmed length: " + String(mobile).trim().length);
+
+    const trimmedMobile = String(mobile).trim();
+    const digitsOnly = trimmedMobile.replace(/[^0-9]/g, '');
+
+    Logger.log("Digits only: " + digitsOnly);
+    Logger.log("Digits length: " + digitsOnly.length);
+
+    if (!digitsOnly || digitsOnly.length !== 10) {
+      Logger.log("Validation failed: Invalid mobile number");
       return failure("Invalid mobile number");
     }
 
-    const customer = findCustomerByMobile(mobile);
+    Logger.log("Calling findCustomerByMobile()");
+    const customer = findCustomerByMobile(digitsOnly);
+
+    Logger.log("Customer found: " + (customer ? "YES" : "NO"));
 
     if (!customer) {
+      Logger.log("Returning NEW customer");
       return success("New Customer", {
         exists: false,
         isNew: true
       });
     }
 
+    Logger.log("Customer details: " + JSON.stringify(customer));
+
+    Logger.log("Fetching bookings for mobile: " + digitsOnly);
     const bookings = filterRecords(
       APP.SHEETS.BOOKINGS,
       function(b) {
-        return String(b.Mobile).trim() == String(mobile).trim();
+        return String(b.Mobile).trim() == String(digitsOnly).trim();
       }
     );
+
+    Logger.log("Bookings found: " + bookings.length);
 
     const totalBookings = bookings.length;
     
@@ -336,6 +358,8 @@ function searchCustomerByMobile(mobile) {
         return self.indexOf(value) === index;
       });
     }
+
+    Logger.log("Returning EXISTING customer with history");
 
     return success("Existing Customer", {
       exists: true,
@@ -358,6 +382,7 @@ function searchCustomerByMobile(mobile) {
     });
 
   } catch (e) {
+    Logger.log("ERROR in searchCustomerByMobile: " + e.message);
     return failure(e.message);
   }
 
