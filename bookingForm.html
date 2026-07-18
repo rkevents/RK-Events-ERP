@@ -259,6 +259,73 @@
 
                             </div>
 
+                            <!-- Initial Payment (Only for New Booking) -->
+                            <div class="col-12 mt-3" id="initialPaymentSection">
+                                <h6 class="text-muted mb-3">Initial Payment (Optional)</h6>
+                            </div>
+
+                            <div class="col-md-3" id="initialAdvanceField">
+
+                                <label class="form-label">
+                                    Advance Amount
+                                </label>
+
+                                <input
+                                    type="number"
+                                    id="initialAdvanceAmount"
+                                    class="form-control"
+                                    placeholder="0"
+                                    onkeyup="calculateBalance()"
+                                    onchange="calculateBalance()">
+
+                            </div>
+
+                            <div class="col-md-3" id="initialPaymentModeField">
+
+                                <label class="form-label">
+                                    Payment Mode
+                                </label>
+
+                                <select
+                                    id="initialPaymentMode"
+                                    class="form-select">
+                                    <option value="">Select Mode</option>
+                                    <option>Cash</option>
+                                    <option>UPI</option>
+                                    <option>Bank Transfer</option>
+                                    <option>Card</option>
+                                    <option>Cheque</option>
+                                </select>
+
+                            </div>
+
+                            <div class="col-md-3" id="initialPaymentDateField">
+
+                                <label class="form-label">
+                                    Payment Date
+                                </label>
+
+                                <input
+                                    type="date"
+                                    id="initialPaymentDate"
+                                    class="form-control">
+
+                            </div>
+
+                            <div class="col-md-3" id="initialPaymentRemarksField">
+
+                                <label class="form-label">
+                                    Payment Remarks
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="initialPaymentRemarksInput"
+                                    class="form-control"
+                                    placeholder="Optional">
+
+                            </div>
+
                         </div>
 
                     </div>

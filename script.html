@@ -541,7 +541,33 @@ function clearBookingForm() {
     if (newPaymentDate) {
         newPaymentDate.value = today;
     }
+    
+    const initialPaymentDate = document.getElementById("initialPaymentDate");
+    if (initialPaymentDate) {
+        initialPaymentDate.value = today;
+    }
+    
+    showInitialPaymentSection();
 
+}
+
+/******************************************************
+ * SHOW/HIDE PAYMENT SECTIONS
+ ******************************************************/
+function showInitialPaymentSection() {
+    const sections = ['initialPaymentSection', 'initialAdvanceField', 'initialPaymentModeField', 'initialPaymentDateField', 'initialPaymentRemarksField'];
+    sections.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'block';
+    });
+}
+
+function hideInitialPaymentSection() {
+    const sections = ['initialPaymentSection', 'initialAdvanceField', 'initialPaymentModeField', 'initialPaymentDateField', 'initialPaymentRemarksField'];
+    sections.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
 }
 
 /******************************************************
@@ -621,6 +647,8 @@ function populateBookingForm(booking) {
 
     document.getElementById("remarks").value =
         booking.Remarks || "";
+    
+    hideInitialPaymentSection();
 
 }
 
@@ -726,7 +754,15 @@ function applyBusinessRules(booking) {
 function calculateBalance() {
 
     const budget = safeNumber("budget");
-    const amountReceived = safeNumber("advanceAmount");
+    
+    let amountReceived;
+    const initialAdvanceField = document.getElementById("initialAdvanceAmount");
+    if (initialAdvanceField && initialAdvanceField.offsetParent !== null) {
+        amountReceived = safeNumber("initialAdvanceAmount");
+    } else {
+        amountReceived = safeNumber("advanceAmount");
+    }
+    
     const eventDate = document.getElementById("eventDate").value;
 
     const paymentStatusEl = document.getElementById("paymentStatus");
@@ -1105,6 +1141,26 @@ async function saveBooking() {
             );
 
         } else {
+
+            const initialAdvance = Number(document.getElementById("initialAdvanceAmount").value || 0);
+            const initialMode = document.getElementById("initialPaymentMode").value;
+            const initialDate = document.getElementById("initialPaymentDate").value;
+            const initialRemarks = document.getElementById("initialPaymentRemarksInput").value;
+            
+            booking.advanceAmount = initialAdvance;
+            booking.balanceAmount = Math.max(0, booking.budget - initialAdvance);
+            
+            if (initialAdvance === 0) {
+                booking.paymentStatus = "Pending";
+            } else if (initialAdvance < booking.budget) {
+                booking.paymentStatus = "Partial";
+            } else {
+                booking.paymentStatus = "Paid";
+            }
+            
+            booking.paymentMode = initialMode || "";
+            booking.paymentDate = initialDate || "";
+            booking.paymentRemarks = initialRemarks || "";
 
             result = await callServer(
                 "saveBooking",
