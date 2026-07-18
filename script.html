@@ -542,57 +542,53 @@ function clearBookingForm() {
         newPaymentDate.value = today;
     }
     
-    const initialPaymentDate = document.getElementById("initialPaymentDate");
-    if (initialPaymentDate) {
-        initialPaymentDate.value = today;
+    const newBookingPaymentDate = document.getElementById("newBookingPaymentDate");
+    if (newBookingPaymentDate) {
+        newBookingPaymentDate.value = today;
     }
     
-    const bookingAmountEdit = document.getElementById("bookingAmountEdit");
-    if (bookingAmountEdit) {
-        bookingAmountEdit.value = "";
+    const newBookingAdvanceAmount = document.getElementById("newBookingAdvanceAmount");
+    if (newBookingAdvanceAmount) {
+        newBookingAdvanceAmount.value = "";
     }
     
-    const advanceAmountDisplay = document.getElementById("advanceAmountDisplay");
-    if (advanceAmountDisplay) {
-        advanceAmountDisplay.value = "0";
+    const newBookingPaymentMode = document.getElementById("newBookingPaymentMode");
+    if (newBookingPaymentMode) {
+        newBookingPaymentMode.value = "";
     }
     
-    const alreadyReceivedDisplay = document.getElementById("alreadyReceivedDisplay");
-    if (alreadyReceivedDisplay) {
-        alreadyReceivedDisplay.value = "0";
+    const newBookingPaymentRemarks = document.getElementById("newBookingPaymentRemarks");
+    if (newBookingPaymentRemarks) {
+        newBookingPaymentRemarks.value = "";
     }
     
-    const balanceAmount = document.getElementById("balanceAmount");
-    if (balanceAmount) {
-        balanceAmount.value = "0";
-    }
-    
-    const paymentStatus = document.getElementById("paymentStatus");
-    if (paymentStatus) {
-        paymentStatus.value = "Pending";
-    }
-    
-    showInitialPaymentSection();
+    showNewBookingPayment();
 
 }
 
 /******************************************************
  * SHOW/HIDE PAYMENT SECTIONS
  ******************************************************/
-function showInitialPaymentSection() {
-    const sections = ['initialPaymentSection', 'initialAdvanceField', 'initialPaymentModeField', 'initialPaymentDateField', 'initialPaymentRemarksField'];
+function showNewBookingPayment() {
+    const sections = ['newBookingPaymentSection', 'newBookingAdvanceField', 'newBookingPaymentModeField', 'newBookingPaymentDateField', 'newBookingPaymentRemarksField'];
     sections.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'block';
     });
+    
+    const editCard = document.getElementById('editBookingPaymentCard');
+    if (editCard) editCard.style.display = 'none';
 }
 
-function hideInitialPaymentSection() {
-    const sections = ['initialPaymentSection', 'initialAdvanceField', 'initialPaymentModeField', 'initialPaymentDateField', 'initialPaymentRemarksField'];
+function showEditBookingPayment() {
+    const sections = ['newBookingPaymentSection', 'newBookingAdvanceField', 'newBookingPaymentModeField', 'newBookingPaymentDateField', 'newBookingPaymentRemarksField'];
     sections.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });
+    
+    const editCard = document.getElementById('editBookingPaymentCard');
+    if (editCard) editCard.style.display = 'block';
 }
 
 /******************************************************
@@ -719,7 +715,12 @@ function populateBookingForm(booking) {
     document.getElementById("remarks").value =
         booking.Remarks || "";
     
-    hideInitialPaymentSection();
+    const bookingStatusDisplay = document.getElementById("bookingStatusDisplay");
+    if (bookingStatusDisplay) {
+        bookingStatusDisplay.value = booking.BookingStatus || "Pending";
+    }
+    
+    showEditBookingPayment();
     
     recalculatePaymentSummary();
 
@@ -1225,30 +1226,45 @@ async function saveBooking() {
 
             const budgetValue = safeNumber("budget");
             if (budgetValue <= 0) {
-                return showToast("Budget must be greater than zero", "danger");
+                return showToast("Booking Amount must be greater than zero", "danger");
             }
             
+            const advanceAmount = Number(document.getElementById("newBookingAdvanceAmount").value);
+            if (isNaN(advanceAmount) || advanceAmount < 0) {
+                return showToast("Advance Amount cannot be negative", "danger");
+            }
+            
+            if (advanceAmount > budgetValue) {
+                return showToast("Advance Amount cannot exceed Booking Amount", "danger");
+            }
+            
+            const paymentMode = document.getElementById("newBookingPaymentMode").value;
+            if (!paymentMode) {
+                return showToast("Payment Mode is required", "danger");
+            }
+            
+            const paymentDate = document.getElementById("newBookingPaymentDate").value;
+            if (!paymentDate) {
+                return showToast("Payment Date is required", "danger");
+            }
+            
+            const paymentRemarks = document.getElementById("newBookingPaymentRemarks").value;
+            
             booking.budget = budgetValue;
+            booking.advanceAmount = advanceAmount;
+            booking.balanceAmount = Math.max(0, budgetValue - advanceAmount);
             
-            const initialAdvance = Number(document.getElementById("initialAdvanceAmount").value || 0);
-            const initialMode = document.getElementById("initialPaymentMode").value;
-            const initialDate = document.getElementById("initialPaymentDate").value;
-            const initialRemarks = document.getElementById("initialPaymentRemarksInput").value;
-            
-            booking.advanceAmount = initialAdvance;
-            booking.balanceAmount = Math.max(0, booking.budget - initialAdvance);
-            
-            if (initialAdvance === 0) {
+            if (advanceAmount === 0) {
                 booking.paymentStatus = "Pending";
-            } else if (initialAdvance < booking.budget) {
+            } else if (advanceAmount < budgetValue) {
                 booking.paymentStatus = "Partial";
             } else {
                 booking.paymentStatus = "Paid";
             }
             
-            booking.paymentMode = initialMode || "";
-            booking.paymentDate = initialDate || "";
-            booking.paymentRemarks = initialRemarks || "";
+            booking.paymentMode = paymentMode;
+            booking.paymentDate = paymentDate;
+            booking.paymentRemarks = paymentRemarks;
 
             result = await callServer(
                 "saveBooking",

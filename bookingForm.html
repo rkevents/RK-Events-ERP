@@ -259,35 +259,34 @@
 
                             </div>
 
-                            <!-- Initial Payment (Only for New Booking) -->
-                            <div class="col-12 mt-3" id="initialPaymentSection">
-                                <h6 class="text-muted mb-3">Initial Payment (Optional)</h6>
+                            <!-- Payment Details (Only for New Booking) -->
+                            <div class="col-12 mt-3" id="newBookingPaymentSection">
+                                <h6 class="text-primary mb-3">Payment Details</h6>
                             </div>
 
-                            <div class="col-md-3" id="initialAdvanceField">
+                            <div class="col-md-3" id="newBookingAdvanceField">
 
                                 <label class="form-label">
-                                    Advance Amount
+                                    Advance Amount <span class="text-danger">*</span>
                                 </label>
 
                                 <input
                                     type="number"
-                                    id="initialAdvanceAmount"
+                                    id="newBookingAdvanceAmount"
                                     class="form-control"
-                                    placeholder="0"
-                                    onkeyup="calculateBalance()"
-                                    onchange="calculateBalance()">
+                                    placeholder="Enter advance amount"
+                                    min="0">
 
                             </div>
 
-                            <div class="col-md-3" id="initialPaymentModeField">
+                            <div class="col-md-3" id="newBookingPaymentModeField">
 
                                 <label class="form-label">
-                                    Payment Mode
+                                    Payment Mode <span class="text-danger">*</span>
                                 </label>
 
                                 <select
-                                    id="initialPaymentMode"
+                                    id="newBookingPaymentMode"
                                     class="form-select">
                                     <option value="">Select Mode</option>
                                     <option>Cash</option>
@@ -299,20 +298,20 @@
 
                             </div>
 
-                            <div class="col-md-3" id="initialPaymentDateField">
+                            <div class="col-md-3" id="newBookingPaymentDateField">
 
                                 <label class="form-label">
-                                    Payment Date
+                                    Payment Date <span class="text-danger">*</span>
                                 </label>
 
                                 <input
                                     type="date"
-                                    id="initialPaymentDate"
+                                    id="newBookingPaymentDate"
                                     class="form-control">
 
                             </div>
 
-                            <div class="col-md-3" id="initialPaymentRemarksField">
+                            <div class="col-md-3" id="newBookingPaymentRemarksField">
 
                                 <label class="form-label">
                                     Payment Remarks
@@ -320,7 +319,7 @@
 
                                 <input
                                     type="text"
-                                    id="initialPaymentRemarksInput"
+                                    id="newBookingPaymentRemarks"
                                     class="form-control"
                                     placeholder="Optional">
 
@@ -332,19 +331,19 @@
 
                 </div>
 
-                <!-- Payment Details -->
+                <!-- Payment Management (Only for Edit Booking) -->
 
-                <div class="card">
+                <div class="card" id="editBookingPaymentCard" style="display: none;">
 
                     <div class="card-header bg-warning">
-                        Booking Details
+                        Payment Management
                     </div>
 
                     <div class="card-body">
 
                         <div class="row g-3">
 
-                            <!-- Payment Summary (Read Only) -->
+                            <!-- Payment Summary -->
                             <div class="col-12">
                                 <h6 class="mb-3">Payment Summary</h6>
                             </div>
@@ -418,6 +417,21 @@
                                 <input
                                     type="text"
                                     id="paymentStatus"
+                                    class="form-control"
+                                    readonly
+                                    style="background-color: #f8f9fa;">
+
+                            </div>
+
+                            <div class="col-md-3">
+
+                                <label class="form-label">
+                                    Booking Status
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="bookingStatusDisplay"
                                     class="form-control"
                                     readonly
                                     style="background-color: #f8f9fa;">
