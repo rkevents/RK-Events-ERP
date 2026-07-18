@@ -42,8 +42,6 @@ const APP = Object.freeze({
 
     EDITING: "Editing",
 
-    PAYMENTS: "Payments",
-
     EXPENSES: "Expenses",
 
     EMPLOYEES: "Employees",

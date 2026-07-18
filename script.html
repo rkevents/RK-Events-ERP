@@ -6,6 +6,8 @@
 
 <script>
 
+console.log("SCRIPT.HTML LOADED - v2.2");
+
 /******************************************************
  * LOADER
  ******************************************************/
@@ -242,6 +244,8 @@ async function loadDashboard() {
             result.company
         );
 
+        updateDashboardMonthLink();
+
     }
     catch (e) {
 
@@ -371,8 +375,8 @@ function openBookingForm() {
 
     enableFormFields();
 
-    document.querySelector("#bookingModal .modal-title").innerHTML =
-        '<i class="bi bi-calendar-plus me-2"></i>New Booking';
+    document.querySelector("#bookingModal .modal-title").innerHTML = 
+        "<i class=\"bi bi-calendar-plus me-2\"></i>New Booking";
 
     bookingModal.show();
 
@@ -405,7 +409,8 @@ function disableFormFields() {
         "venue",
         "requirement",
         "budget",
-        "googleMap",
+        "bookingSource",
+        "bookingAmount",
         "advanceAmount",
         "balanceAmount",
         "paymentStatus",
@@ -446,10 +451,7 @@ function enableFormFields() {
         "venue",
         "requirement",
         "budget",
-        "googleMap",
-        "advanceAmount",
-        "balanceAmount",
-        "paymentStatus",
+        "bookingSource",
         "bookingStatus",
         "remarks"
     ].forEach(function (id) {
@@ -489,9 +491,7 @@ function clearBookingForm() {
         "venue",
         "requirement",
         "budget",
-        "googleMap",
-        "advanceAmount",
-        "balanceAmount",
+        "bookingSource",
         "remarks"
     ].forEach(function (id) {
 
@@ -508,8 +508,8 @@ function clearBookingForm() {
 
     [
         "eventType",
-        "paymentStatus",
-        "bookingStatus"
+        "bookingStatus",
+        "bookingSource"
     ].forEach(function (id) {
 
         const el =
@@ -533,6 +533,9 @@ function clearBookingForm() {
     if (historyDiv) {
         historyDiv.style.display = "none";
     }
+    
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById("paymentDate").value = today;
 
 }
 
@@ -540,6 +543,8 @@ function clearBookingForm() {
  * POPULATE BOOKING FORM
  ******************************************************/
 function populateBookingForm(booking) {
+
+    booking = applyBusinessRules(booking);
 
     document.getElementById("customerName").value =
         booking.CustomerName || "";
@@ -568,23 +573,133 @@ function populateBookingForm(booking) {
     document.getElementById("budget").value =
         booking.Budget || 0;
 
-    document.getElementById("googleMap").value =
-        booking.GoogleMap || "";
+    // Populate Booking Source (formerly GoogleMap field)
+    const bookingSourceValue = booking.GoogleMap || "";
+    const bookingSourceDropdown = document.getElementById("bookingSource");
+    
+    if (bookingSourceDropdown) {
+        // Check if value is a legacy URL
+        if (bookingSourceValue && (bookingSourceValue.startsWith('http://') || bookingSourceValue.startsWith('https://'))) {
+            // Legacy data - select "Other" and note it
+            bookingSourceDropdown.value = "Other";
+        } else {
+            // Try to select the value if it exists in dropdown
+            bookingSourceDropdown.value = bookingSourceValue || "";
+        }
+    }
 
-    document.getElementById("advanceAmount").value =
-        booking.AdvanceAmount || 0;
+    const budget = Number(booking.Budget || 0);
+    const advanceAmount = Number(booking.AdvanceAmount || 0);
+    const balanceAmount = Number(booking.BalanceAmount || 0);
 
-    document.getElementById("balanceAmount").value =
-        booking.BalanceAmount || 0;
-
-    document.getElementById("paymentStatus").value =
-        booking.PaymentStatus || "Pending";
+    document.getElementById("advanceAmount").value = advanceAmount;
+    document.getElementById("balanceAmount").value = balanceAmount;
+    document.getElementById("paymentStatus").value = booking.PaymentStatus || "Pending";
+    document.getElementById("paymentDate").value = booking.PaymentDate || "";
+    document.getElementById("paymentMode").value = booking.PaymentMode || "";
+    document.getElementById("paymentRemarks").value = booking.PaymentRemarks || "";
 
     document.getElementById("bookingStatus").value =
-        booking.BookingStatus || "New";
+        booking.BookingStatus || "Pending";
 
     document.getElementById("remarks").value =
         booking.Remarks || "";
+
+}
+
+/******************************************************
+ * CALCULATE BOOKING STATUS (Business Rules)
+ ******************************************************/
+function calculateBookingStatus(eventDate, amountReceived, currentBookingStatus) {
+
+    if (currentBookingStatus === "Cancelled") {
+        return "Cancelled";
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const eventDateObj = eventDate ? new Date(eventDate) : null;
+    if (eventDateObj) {
+        eventDateObj.setHours(0, 0, 0, 0);
+        if (today > eventDateObj) {
+            return "Completed";
+        }
+    }
+
+    if (amountReceived > 0) {
+        return "Confirmed";
+    }
+
+    return "Pending";
+
+}
+
+/******************************************************
+ * RECALCULATE STATUSES (Business Rules)
+ ******************************************************/
+function recalculateStatuses(budget, amountReceived, currentPaymentStatus, currentBookingStatus, eventDate) {
+
+    const balance = budget - amountReceived;
+    
+    let paymentStatus = currentPaymentStatus;
+
+    if (currentPaymentStatus !== "Refunded") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const eventDateObj = eventDate ? new Date(eventDate) : null;
+        if (eventDateObj) {
+            eventDateObj.setHours(0, 0, 0, 0);
+        }
+        
+        const eventPassed = eventDateObj && today > eventDateObj;
+
+        if (amountReceived === 0) {
+            paymentStatus = "Pending";
+        } else if (amountReceived > 0 && balance > 0) {
+            paymentStatus = eventPassed ? "Pending" : "Partial";
+        } else if (balance === 0 && budget > 0) {
+            paymentStatus = "Paid";
+        }
+    }
+
+    const bookingStatus = calculateBookingStatus(eventDate, amountReceived, currentBookingStatus);
+
+    return {
+        paymentStatus: paymentStatus,
+        bookingStatus: bookingStatus,
+        balance: balance
+    };
+
+}
+
+/******************************************************
+ * APPLY BUSINESS RULES TO BOOKING OBJECT
+ ******************************************************/
+function applyBusinessRules(booking) {
+
+    if (!booking) return booking;
+
+    const budget = Number(booking.Budget || 0);
+    const amountReceived = Number(booking.AdvanceAmount || 0);
+    const currentPaymentStatus = booking.PaymentStatus || "Pending";
+    const currentBookingStatus = booking.BookingStatus || "Pending";
+    const eventDate = booking.EventDate || null;
+
+    const result = recalculateStatuses(
+        budget,
+        amountReceived,
+        currentPaymentStatus,
+        currentBookingStatus,
+        eventDate
+    );
+
+    booking.PaymentStatus = result.paymentStatus;
+    booking.BookingStatus = result.bookingStatus;
+    booking.BalanceAmount = result.balance;
+
+    return booking;
 
 }
 
@@ -593,15 +708,45 @@ function populateBookingForm(booking) {
  ******************************************************/
 function calculateBalance() {
 
-    const budget =
-        safeNumber("budget");
+    const budget = safeNumber("budget");
+    const amountReceived = safeNumber("advanceAmount");
+    const eventDate = document.getElementById("eventDate").value;
 
-    const advance =
-        safeNumber("advanceAmount");
+    const paymentStatusEl = document.getElementById("paymentStatus");
+    const bookingStatusEl = document.getElementById("bookingStatus");
 
-    document.getElementById(
-        "balanceAmount"
-    ).value = budget - advance;
+    const result = recalculateStatuses(
+        budget,
+        amountReceived,
+        paymentStatusEl.value,
+        bookingStatusEl.value,
+        eventDate
+    );
+
+    document.getElementById("balanceAmount").value = result.balance;
+    paymentStatusEl.value = result.paymentStatus;
+    bookingStatusEl.value = result.bookingStatus;
+
+}
+
+/******************************************************
+ * HANDLE PAYMENT STATUS CHANGE
+ ******************************************************/
+function handlePaymentStatusChange() {
+
+    const paymentStatus = document.getElementById("paymentStatus").value;
+    const budget = safeNumber("budget");
+
+    if (paymentStatus === "Paid" && budget > 0) {
+        document.getElementById("advanceAmount").value = budget;
+        document.getElementById("balanceAmount").value = 0;
+    }
+
+    if (paymentStatus === "Refunded") {
+        document.getElementById("bookingStatus").value = "Cancelled";
+    } else {
+        calculateBalance();
+    }
 
 }
 
@@ -742,6 +887,14 @@ async function searchCustomer(mobile) {
             }
 
             clearCustomerFields();
+            
+            // Enable customer name field for new customers
+            const customerNameField = document.getElementById("customerName");
+            if (customerNameField) {
+                customerNameField.removeAttribute("readonly");
+                customerNameField.classList.remove("bg-light");
+                customerNameField.style.cursor = "text";
+            }
 
         } else {
 
@@ -802,6 +955,16 @@ function populateCustomerData(customer) {
             console.error(fieldId + " field not found!");
         }
     }
+    
+    // BUSINESS RULE: Customer name is readonly for existing customers
+    // Customer Master is the ONLY source of truth
+    const customerNameField = document.getElementById("customerName");
+    if (customerNameField) {
+        customerNameField.setAttribute("readonly", "readonly");
+        customerNameField.classList.add("bg-light");
+        customerNameField.style.cursor = "not-allowed";
+        customerNameField.title = "Customer name cannot be changed here. Edit from Customer Management.";
+    }
 
 }
 
@@ -826,32 +989,24 @@ function clearCustomerFields() {
 
 function displayCustomerHistory(history) {
 
-    console.log("========================================");
-    console.log("FRONTEND: displayCustomerHistory CALLED");
-    console.log("========================================");
-    console.log("16. HISTORY OBJECT RECEIVED:");
-    console.log(history);
-    console.log("    history.totalBookings = " + history.totalBookings);
-    console.log("    Type: " + typeof history.totalBookings);
-    console.log("    history.eventTypes = " + history.eventTypes);
-    console.log("    history.lastEventDate = " + history.lastEventDate);
-    console.log("    history.customerSince = " + history.customerSince);
-
-    console.log("17. SETTING HTML VALUES:");
     setText("customerSince", history.customerSince || "-");
-    console.log("    customerSince set to: " + (history.customerSince || "-"));
-    
-    setText("totalBookings", history.totalBookings || "0");
-    console.log("    totalBookings set to: " + (history.totalBookings || "0"));
-    
+    setText("historyTotalBookings", history.totalBookings || "0");
     setText("lastEventDate", history.lastEventDate || "-");
-    console.log("    lastEventDate set to: " + (history.lastEventDate || "-"));
-    
     setText("previousEvents", history.eventTypes || "-");
-    console.log("    previousEvents set to: " + (history.eventTypes || "-"));
-
-    console.log("18. HTML RENDERING COMPLETE");
-    console.log("========================================");
+    
+    // Display outstanding balance
+    const outstandingBalance = history.outstandingBalance || 0;
+    setText("outstandingBalance", "₹" + outstandingBalance.toLocaleString('en-IN'));
+    
+    // Show repeat customer badge if applicable
+    const repeatBadge = document.getElementById("repeatCustomerBadge");
+    if (repeatBadge) {
+        if (history.isRepeatCustomer) {
+            repeatBadge.style.display = "inline-block";
+        } else {
+            repeatBadge.style.display = "none";
+        }
+    }
 
 }
 /******************************************************
@@ -877,7 +1032,7 @@ async function saveBooking() {
         venue: safeValue("venue"),
         requirement: safeValue("requirement"),
         budget: safeNumber("budget"),
-        googleMap: safeValue("googleMap"),
+        bookingSource: document.getElementById("bookingSource").value,
 
         advanceAmount:
             safeNumber("advanceAmount"),
@@ -887,6 +1042,15 @@ async function saveBooking() {
 
         paymentStatus:
             document.getElementById("paymentStatus").value,
+
+        paymentDate:
+            document.getElementById("paymentDate").value,
+
+        paymentMode:
+            document.getElementById("paymentMode").value,
+
+        paymentRemarks:
+            safeValue("paymentRemarks"),
 
         bookingStatus:
             document.getElementById("bookingStatus").value,
@@ -906,6 +1070,9 @@ async function saveBooking() {
 
     if (!booking.eventDate)
         return showToast("Event Date is required", "danger");
+    
+    if (!booking.bookingSource)
+        return showToast("Booking Source is required", "danger");
 
     try {
 
@@ -969,18 +1136,445 @@ async function saveBooking() {
 }
 
 /******************************************************
- * LOAD BOOKINGS
+ * BOOKING FILTER STATE
+ ******************************************************/
+let currentBookingFilter = null;
+let currentFromDate = null;
+let currentToDate = null;
+let allBookingsData = [];
+let bookingsLoaded = false;
+let bookingsLoading = false;
+
+/******************************************************
+ * NAVIGATE TO DASHBOARD
+ ******************************************************/
+function navigateToDashboard() {
+    showPage('dashboardPage');
+}
+
+/******************************************************
+ * NAVIGATE TO BOOKINGS WITH FILTER
+ ******************************************************/
+function navigateToBookings(filterType) {
+    currentBookingFilter = filterType;
+    showPage('bookingsPage');
+    
+    if (filterType === 'current') {
+        const today = new Date();
+        const fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        const toDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        
+        fromDate.setHours(0, 0, 0, 0);
+        toDate.setHours(0, 0, 0, 0);
+        
+        currentFromDate = fromDate;
+        currentToDate = toDate;
+        
+        document.getElementById('filterFromDate').value = formatDateToInput(fromDate);
+        document.getElementById('filterToDate').value = formatDateToInput(toDate);
+        
+        applyFilters();
+    } else {
+        clearAllFilters();
+    }
+}
+
+/******************************************************
+ * CLEAR ALL FILTERS (Clear button)
+ ******************************************************/
+function clearAllFilters() {
+    console.log('CLEAR ALL FILTERS CALLED');
+    
+    // Reset state
+    currentBookingFilter = null;
+    currentFromDate = null;
+    currentToDate = null;
+
+    // Clear UI inputs
+    const fromDateInput = document.getElementById('filterFromDate');
+    const toDateInput = document.getElementById('filterToDate');
+    const searchInput = document.getElementById('bookingSearch');
+    
+    if (fromDateInput) fromDateInput.value = '';
+    if (toDateInput) toDateInput.value = '';
+    if (searchInput) searchInput.value = '';
+
+    console.log('All filters cleared, applying filters to show all bookings');
+    
+    // Reapply filters (will show all bookings since filters are cleared)
+    applyFilters();
+}
+
+/******************************************************
+ * APPLY DATE FILTER (Search button)
+ ******************************************************/
+function applyDateFilter() {
+    console.log('APPLY DATE FILTER CALLED (Search button clicked)');
+    
+    const fromDateInput = document.getElementById('filterFromDate');
+    const toDateInput = document.getElementById('filterToDate');
+    
+    const fromDateValue = fromDateInput ? fromDateInput.value : '';
+    const toDateValue = toDateInput ? toDateInput.value : '';
+    
+    console.log('From Date Input:', fromDateValue);
+    console.log('To Date Input:', toDateValue);
+    
+    if (!fromDateValue && !toDateValue) {
+        showToast('Please select at least one date', 'warning');
+        return;
+    }
+    
+    currentFromDate = fromDateValue ? new Date(fromDateValue + 'T00:00:00') : null;
+    currentToDate = toDateValue ? new Date(toDateValue + 'T00:00:00') : null;
+    
+    if (currentFromDate && currentToDate && currentFromDate > currentToDate) {
+        showToast('From Date cannot be after To Date', 'warning');
+        return;
+    }
+    
+    console.log('Date filter set:');
+    console.log('  From:', currentFromDate ? currentFromDate.toISOString().split('T')[0] : 'none');
+    console.log('  To:', currentToDate ? currentToDate.toISOString().split('T')[0] : 'none');
+    
+    // Apply all filters immediately
+    applyFilters();
+}
+
+/******************************************************
+ * FORMAT DATE TO INPUT (YYYY-MM-DD)
+ ******************************************************/
+function formatDateToInput(date) {
+    if (!date || !(date instanceof Date)) return '';
+    
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return year + '-' + month + '-' + day;
+}
+
+/******************************************************
+ * APPLY ALL FILTERS (DATE + TEXT)
+ ******************************************************/
+function applyFilters() {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('APPLY FILTERS CALLED');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    // CRITICAL FIX: Load bookings if not loaded yet
+    if (!bookingsLoaded && !bookingsLoading) {
+        console.log('⚠ Bookings not loaded yet. Loading from server first...');
+        loadBookings();
+        return; // loadBookings will call applyFilters after loading
+    }
+    
+    // If currently loading, wait
+    if (bookingsLoading) {
+        console.log('⏳ Bookings currently loading, please wait...');
+        return;
+    }
+    
+    let filteredData = allBookingsData || [];
+    
+    console.log('1. Total bookings loaded:', filteredData.length);
+    
+    // Apply date filter
+    if (currentFromDate || currentToDate) {
+        console.log('2. Applying date filter...');
+        filteredData = filterByDateRange(filteredData);
+        console.log('   Bookings after date filter:', filteredData.length);
+    } else {
+        console.log('2. No date filter active');
+    }
+    
+    // Apply text search
+    const searchInput = document.getElementById('bookingSearch');
+    const searchText = searchInput ? searchInput.value : '';
+    
+    if (searchText && searchText.trim()) {
+        console.log('3. Applying text search for:', searchText.trim());
+        filteredData = filterByText(filteredData, searchText.trim());
+        console.log('   Bookings after text search:', filteredData.length);
+    } else {
+        console.log('3. No text search active');
+    }
+    
+    console.log('4. Rendering table with', filteredData.length, 'bookings');
+    renderBookingTable(filteredData);
+    
+    console.log('5. Updating filter badge');
+    updateFilterBadge();
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+}
+
+/******************************************************
+ * FILTER BY DATE RANGE
+ ******************************************************/
+function filterByDateRange(bookings) {
+    if (!bookings || !Array.isArray(bookings)) {
+        return [];
+    }
+
+    const fromDateNormalized = currentFromDate ? new Date(currentFromDate) : null;
+    const toDateNormalized = currentToDate ? new Date(currentToDate) : null;
+
+    if (fromDateNormalized) {
+        fromDateNormalized.setHours(0, 0, 0, 0);
+    }
+
+    if (toDateNormalized) {
+        toDateNormalized.setHours(23, 59, 59, 999);
+    }
+
+    const filtered = bookings.filter(function(booking) {
+        if (!booking.EventDate) {
+            return false;
+        }
+
+        const eventDate = parseDisplayDate(booking.EventDate);
+        if (!eventDate) {
+            console.warn('Failed to parse date:', booking.EventDate, 'for booking:', booking.BookingNo);
+            return false;
+        }
+
+        eventDate.setHours(0, 0, 0, 0);
+
+        if (fromDateNormalized && eventDate < fromDateNormalized) {
+            return false;
+        }
+
+        if (toDateNormalized && eventDate > toDateNormalized) {
+            return false;
+        }
+
+        return true;
+    });
+
+    return filtered;
+}
+
+/******************************************************
+ * FILTER BY TEXT
+ ******************************************************/
+function filterByText(bookings, searchText) {
+    if (!bookings || !Array.isArray(bookings)) {
+        return [];
+    }
+    
+    const searchLower = searchText.toLowerCase();
+    
+    return bookings.filter(function(booking) {
+        const bookingNo = String(booking.BookingNo || '').toLowerCase();
+        const customerName = String(booking.CustomerName || '').toLowerCase();
+        const mobile = String(booking.Mobile || '').toLowerCase();
+        const eventType = String(booking.EventType || '').toLowerCase();
+        const venue = String(booking.Venue || '').toLowerCase();
+        const bookingStatus = String(booking.BookingStatus || '').toLowerCase();
+        const paymentStatus = String(booking.PaymentStatus || '').toLowerCase();
+        const budget = String(booking.Budget || '').toLowerCase();
+        const advanceAmount = String(booking.AdvanceAmount || '').toLowerCase();
+        const balanceAmount = String(booking.BalanceAmount || '').toLowerCase();
+        const bookingSource = String(booking.GoogleMap || '').toLowerCase(); // GoogleMap column stores BookingSource
+        
+        return bookingNo.includes(searchLower) ||
+               customerName.includes(searchLower) ||
+               mobile.includes(searchLower) ||
+               eventType.includes(searchLower) ||
+               venue.includes(searchLower) ||
+               bookingStatus.includes(searchLower) ||
+               paymentStatus.includes(searchLower) ||
+               budget.includes(searchLower) ||
+               advanceAmount.includes(searchLower) ||
+               balanceAmount.includes(searchLower) ||
+               bookingSource.includes(searchLower);
+    });
+}
+
+/******************************************************
+ * UPDATE FILTER BADGE
+ ******************************************************/
+function updateFilterBadge() {
+    const badge = document.getElementById('activeFilterBadge');
+    const badgeText = document.getElementById('filterBadgeText');
+    
+    if (!badge || !badgeText) return;
+    
+    if (currentFromDate || currentToDate) {
+        let rangeText = '';
+        
+        if (currentFromDate && currentToDate) {
+            rangeText = '�"  -replace  \u201D, \� ' + formatDateDisplay(currentFromDate) + ' → ' + formatDateDisplay(currentToDate);
+        } else if (currentFromDate) {
+            rangeText = '�"  -replace  \u201D, \� From ' + formatDateDisplay(currentFromDate);
+        } else if (currentToDate) {
+            rangeText = '�"  -replace  \u201D, \� Until ' + formatDateDisplay(currentToDate);
+        }
+        
+        badgeText.textContent = rangeText;
+        badge.style.display = 'block';
+    } else {
+        badgeText.textContent = 'All Bookings';
+        badge.style.display = 'none';
+    }
+}
+
+/******************************************************
+ * FORMAT DATE FOR DISPLAY (dd-MMM-yyyy)
+ ******************************************************/
+function formatDateDisplay(date) {
+    if (!date || !(date instanceof Date)) return '';
+    
+    const day = String(date.getDate()).padStart(2, '0');
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = monthNames[date.getMonth()];
+    const year = date.getFullYear();
+    
+    return day + '-' + month + '-' + year;
+}
+
+/******************************************************
+ * GET CURRENT MONTH INFO
+ ******************************************************/
+function getCurrentMonthInfo() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    
+    return {
+        name: monthNames[month],
+        year: year,
+        firstDay: firstDay,
+        lastDay: lastDay,
+        displayName: monthNames[month] + ' ' + year
+    };
+}
+
+/******************************************************
+ * FILTER BOOKINGS BY CURRENT MONTH
+ ******************************************************/
+function filterBookingsByMonth(bookings) {
+    if (!bookings || !Array.isArray(bookings)) {
+        return [];
+    }
+    
+    const monthInfo = getCurrentMonthInfo();
+    const firstDayStr = formatDateForComparison(monthInfo.firstDay);
+    const lastDayStr = formatDateForComparison(monthInfo.lastDay);
+    
+    return bookings.filter(function(booking) {
+        if (!booking.EventDate) return false;
+        
+        const eventDateStr = formatDateForComparison(parseDisplayDate(booking.EventDate));
+        
+        return eventDateStr >= firstDayStr && eventDateStr <= lastDayStr;
+    });
+}
+
+/******************************************************
+ * FORMAT DATE FOR COMPARISON (YYYY-MM-DD)
+ ******************************************************/
+function formatDateForComparison(date) {
+    if (!date || !(date instanceof Date)) return '';
+    
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return year + '-' + month + '-' + day;
+}
+
+/******************************************************
+ * PARSE DATE (Universal - handles multiple formats)
+ ******************************************************/
+function parseDisplayDate(dateInput) {
+    if (!dateInput) return null;
+    
+    // Already a Date object
+    if (dateInput instanceof Date) {
+        return new Date(dateInput);
+    }
+    
+    // Number (timestamp or Google serial date)
+    if (typeof dateInput === 'number') {
+        return new Date(dateInput);
+    }
+    
+    const dateStr = String(dateInput).trim();
+    if (!dateStr) return null;
+    
+    // Try ISO format: YYYY-MM-DD or YYYY/MM/DD
+    if (/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/.test(dateStr)) {
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+            return parsed;
+        }
+    }
+    
+    // Try dd-MMM-yyyy format (e.g., 14-Jul-2026)
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        // Check if middle part is a month name
+        const monthIndex = monthNames.indexOf(parts[1]);
+        if (monthIndex !== -1) {
+            const day = parseInt(parts[0]);
+            const year = parseInt(parts[2]);
+            
+            if (!isNaN(day) && !isNaN(year)) {
+                return new Date(year, monthIndex, day);
+            }
+        }
+    }
+    
+    // Fallback: try native Date parsing
+    const fallback = new Date(dateStr);
+    if (!isNaN(fallback.getTime())) {
+        return fallback;
+    }
+    
+    console.warn('Unable to parse date:', dateInput);
+    return null;
+}
+
+/******************************************************
+ * UPDATE DASHBOARD MONTH LINK
+ ******************************************************/
+function updateDashboardMonthLink() {
+    const monthInfo = getCurrentMonthInfo();
+    const linkElement = document.getElementById('currentMonthLink');
+    
+    if (linkElement) {
+        linkElement.textContent = 'View ' + monthInfo.displayName + ' Bookings';
+    }
+}
+
+/******************************************************
+ * LOAD BOOKINGS (Refresh button)
  ******************************************************/
 async function loadBookings() {
 
     try {
+
+        console.log('LOADING BOOKINGS FROM SERVER...');
+        
+        bookingsLoading = true;
 
         const result =
             await callServer(
                 "getBookingList"
             );
 
-        console.log("Booking Response :", result);
+        console.log("Server response received:", result);
 
         if (!result) {
 
@@ -988,6 +1582,8 @@ async function loadBookings() {
                 "No response from server.",
                 "danger"
             );
+            
+            bookingsLoading = false;
 
             return;
 
@@ -999,14 +1595,21 @@ async function loadBookings() {
                 result.message,
                 "danger"
             );
+            
+            bookingsLoading = false;
 
             return;
 
         }
 
-        renderBookingTable(
-            result.data || []
-        );
+        allBookingsData = (result.data || []).map(applyBusinessRules);
+        bookingsLoaded = true;
+        bookingsLoading = false;
+        
+        console.log('Bookings loaded from server:', allBookingsData.length);
+        
+        // Apply current filters (or show all if no filters active)
+        applyFilters();
 
     }
     catch (e) {
@@ -1017,6 +1620,8 @@ async function loadBookings() {
             e.message || "Unable to load bookings.",
             "danger"
         );
+        
+        bookingsLoading = false;
 
     }
 
@@ -1027,11 +1632,16 @@ async function loadBookings() {
  ******************************************************/
 function renderBookingTable(bookings) {
 
+    console.log('�"  -replace  \u201D, \� RENDER BOOKING TABLE');
+    console.log('   Bookings to render:', bookings ? bookings.length : 0);
+
     const tbody =
         document.getElementById("bookingTable");
 
-    if (!tbody)
+    if (!tbody) {
+        console.error('❌ Table body element not found!');
         return;
+    }
 
     tbody.innerHTML = "";
 
@@ -1046,12 +1656,16 @@ function renderBookingTable(bookings) {
         </tr>`;
 
         setText("bookingCount", "Total Bookings : 0");
+        
+        console.log('   Table rendered: No bookings');
 
         return;
 
     }
 
     bookings.forEach(function(item){
+
+        const bookingData = encodeURIComponent(JSON.stringify(item));
 
         tbody.innerHTML += `
         <tr>
@@ -1066,40 +1680,45 @@ function renderBookingTable(bookings) {
 
             <td>${item.EventDate || ""}</td>
 
-            <td>₹ ${item.Budget || 0}</td>
+            <td>₹ ${Number(item.Budget || 0).toLocaleString('en-IN')}</td>
 
-            <td>₹ ${item.AdvanceAmount || 0}</td>
+            <td>₹ ${Number(item.AdvanceAmount || 0).toLocaleString('en-IN')}</td>
 
-            <td>₹ ${item.BalanceAmount || 0}</td>
+            <td>₹ ${Number(item.BalanceAmount || 0).toLocaleString('en-IN')}</td>
 
             <td>${item.BookingStatus || ""}</td>
 
             <td>
+                <div class="action-buttons-container">
+                    <button
+                        class="action-btn action-btn-view"
+                        data-booking='${bookingData}'
+                        onmouseenter="showBookingPreview(event, this)"
+                        onmouseleave="scheduleHidePreview()"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="View Booking">
+                        <i class="bi bi-eye"></i>
+                    </button>
 
-                <button
-                    class="btn btn-sm btn-info"
-                    onclick="viewBooking('${item.BookingID}')">
+                    <button
+                        class="action-btn action-btn-edit"
+                        onclick="editBooking('${item.BookingID}')"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Edit Booking">
+                        <i class="bi bi-pencil"></i>
+                    </button>
 
-                    <i class="bi bi-eye"></i>
-
-                </button>
-
-                <button
-                    class="btn btn-sm btn-primary"
-                    onclick="editBooking('${item.BookingID}')">
-
-                    <i class="bi bi-pencil"></i>
-
-                </button>
-
-                <button
-                    class="btn btn-sm btn-danger"
-                    onclick="deleteBooking('${item.BookingID}')">
-
-                    <i class="bi bi-trash"></i>
-
-                </button>
-
+                    <button
+                        class="action-btn action-btn-delete"
+                        onclick="deleteBooking('${item.BookingID}')"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Delete Booking">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             </td>
 
         </tr>`;
@@ -1108,38 +1727,188 @@ function renderBookingTable(bookings) {
 
     setText("bookingCount", "Total Bookings : " + bookings.length);
 
+    initializeTooltips();
+    
+    console.log('   Table rendered: ' + bookings.length + ' bookings displayed');
+    console.log('   Total count updated');
+
 }
 
 /******************************************************
- * SEARCH BOOKINGS
+ * INITIALIZE BOOTSTRAP TOOLTIPS
  ******************************************************/
-function searchBookings() {
-
-    const search =
-        document.getElementById("bookingSearch");
-
-    if (!search)
-        return;
-
-    const keyword =
-        search.value
-            .toLowerCase()
-            .trim();
-
-    document
-        .querySelectorAll("#bookingTable tr")
-        .forEach(function (row) {
-
-            row.style.display =
-                row.innerText
-                    .toLowerCase()
-                    .includes(keyword)
-                    ? ""
-                    : "none";
-
-        });
-
+function initializeTooltips() {
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltipTriggerList.forEach(function(tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 }
+
+/******************************************************
+ * BOOKING HOVER PREVIEW
+ ******************************************************/
+let previewTimeout;
+let hideTimeout;
+let currentPreview = null;
+
+function showBookingPreview(event, button) {
+    clearTimeout(hideTimeout);
+    
+    previewTimeout = setTimeout(function() {
+        try {
+            const bookingData = JSON.parse(decodeURIComponent(button.getAttribute('data-booking')));
+            displayPreviewCard(button, bookingData);
+        } catch (e) {
+            console.error('Error showing preview:', e);
+        }
+    }, 250);
+}
+
+function scheduleHidePreview() {
+    clearTimeout(previewTimeout);
+    
+    hideTimeout = setTimeout(function() {
+        if (currentPreview && !currentPreview.matches(':hover')) {
+            hidePreviewCard();
+        }
+    }, 300);
+}
+
+function displayPreviewCard(button, booking) {
+    hidePreviewCard();
+    
+    const previewCard = document.createElement('div');
+    previewCard.className = 'booking-preview-card';
+    previewCard.id = 'bookingPreviewCard';
+    
+    previewCard.innerHTML = `
+        <div class="preview-header">
+            <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Booking Details</h6>
+        </div>
+        <div class="preview-body">
+            <div class="preview-row">
+                <span class="preview-label">Customer Name</span>
+                <span class="preview-value">${booking.CustomerName || '-'}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Mobile Number</span>
+                <span class="preview-value">${booking.Mobile || '-'}</span>
+            </div>
+            ${booking.AlternateMobile ? `
+            <div class="preview-row">
+                <span class="preview-label">Alternate Mobile</span>
+                <span class="preview-value">${booking.AlternateMobile}</span>
+            </div>` : ''}
+            <div class="preview-divider"></div>
+            <div class="preview-row">
+                <span class="preview-label">Event Type</span>
+                <span class="preview-value">${booking.EventType || '-'}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Event Date</span>
+                <span class="preview-value">${booking.EventDate || '-'}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Venue</span>
+                <span class="preview-value">${booking.Venue || '-'}</span>
+            </div>
+            <div class="preview-divider"></div>
+            <div class="preview-row">
+                <span class="preview-label">Budget</span>
+                <span class="preview-value">₹ ${booking.Budget || 0}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Advance</span>
+                <span class="preview-value">₹ ${booking.AdvanceAmount || 0}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Balance</span>
+                <span class="preview-value">₹ ${booking.BalanceAmount || 0}</span>
+            </div>
+            <div class="preview-divider"></div>
+            <div class="preview-row">
+                <span class="preview-label">Payment Status</span>
+                <span class="preview-value">${booking.PaymentStatus || '-'}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Booking Status</span>
+                <span class="preview-value">${booking.BookingStatus || '-'}</span>
+            </div>
+            ${booking.Requirement ? `
+            <div class="preview-divider"></div>
+            <div class="preview-row-full">
+                <span class="preview-label">Requirements</span>
+                <span class="preview-value">${booking.Requirement}</span>
+            </div>` : ''}
+            ${booking.Remarks ? `
+            <div class="preview-row-full">
+                <span class="preview-label">Remarks</span>
+                <span class="preview-value">${booking.Remarks}</span>
+            </div>` : ''}
+        </div>
+    `;
+    
+    document.body.appendChild(previewCard);
+    
+    previewCard.addEventListener('mouseenter', function() {
+        clearTimeout(hideTimeout);
+    });
+    
+    previewCard.addEventListener('mouseleave', function() {
+        scheduleHidePreview();
+    });
+    
+    positionPreviewCard(button, previewCard);
+    
+    currentPreview = previewCard;
+    
+    setTimeout(function() {
+        previewCard.classList.add('visible');
+    }, 10);
+}
+
+function positionPreviewCard(button, card) {
+    const buttonRect = button.getBoundingClientRect();
+    const cardWidth = 380;
+    const cardHeight = card.offsetHeight;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    
+    let left = buttonRect.left + scrollLeft + (buttonRect.width / 2) - (cardWidth / 2);
+    let top = buttonRect.bottom + scrollTop + 8;
+    
+    if (left + cardWidth > viewportWidth + scrollLeft - 20) {
+        left = viewportWidth + scrollLeft - cardWidth - 20;
+    }
+    
+    if (left < scrollLeft + 20) {
+        left = scrollLeft + 20;
+    }
+    
+    if (top + cardHeight > viewportHeight + scrollTop - 20) {
+        top = buttonRect.top + scrollTop - cardHeight - 8;
+    }
+    
+    card.style.left = left + 'px';
+    card.style.top = top + 'px';
+}
+
+function hidePreviewCard() {
+    if (currentPreview) {
+        currentPreview.classList.remove('visible');
+        setTimeout(function() {
+            if (currentPreview && currentPreview.parentNode) {
+                currentPreview.parentNode.removeChild(currentPreview);
+            }
+            currentPreview = null;
+        }, 150);
+    }
+    clearTimeout(previewTimeout);
+    clearTimeout(hideTimeout);
+}
+
 
 /******************************************************
  * EDIT BOOKING
@@ -1375,7 +2144,7 @@ document.addEventListener("click", function (e) {
  ******************************************************/
 window.onload = async function () {
 
-    console.log("RK EVENTS ERP v2.1 Started");
+    console.log("RK EVENTS ERP v2.2 Started - Navigation Fixed");
 
     try {
 
@@ -1398,5 +2167,1043 @@ window.onload = async function () {
     }
 
 };
+
+/******************************************************
+ * CUSTOMER MANAGEMENT MODULE
+ ******************************************************/
+
+let allCustomersData = [];
+let customersLoaded = false;
+let customersLoading = false;
+let currentCustomerFilter = 'all';
+let currentCustomerSort = { field: 'name', order: 'asc' };
+let currentCustomerId = null;
+
+/**
+ * Show customers page
+ */
+function showCustomers() {
+    showPage('customersPage');
+    loadCustomers();
+}
+
+/**
+ * Load customers from server
+ */
+async function loadCustomers() {
+    
+    try {
+        
+        console.log('=== LOADING CUSTOMERS START ===');
+        customersLoading = true;
+        
+        const result = await callServer('getCustomerList');
+        
+        console.log('Server result:', result);
+        
+        if (!result || !result.success) {
+            console.error('Failed to load customers:', result);
+            showToast(result ? result.message : 'Failed to load customers', 'danger');
+            customersLoading = false;
+            return;
+        }
+        
+        allCustomersData = result.data || [];
+        customersLoaded = true;
+        customersLoading = false;
+        
+        console.log('Customers loaded:', allCustomersData.length);
+        
+        if (allCustomersData.length > 0) {
+            console.log('First customer:', allCustomersData[0]);
+        } else {
+            console.warn('WARNING: No customers returned from backend');
+        }
+        
+        // Load dashboard stats
+        await loadCustomerDashboardStats();
+        
+        // Apply current filter
+        applyCustomerFilters();
+        
+        console.log('=== LOADING CUSTOMERS END ===');
+        
+    } catch (e) {
+        console.error('Error loading customers:', e);
+        showToast('Unable to load customers: ' + e.message, 'danger');
+        customersLoading = false;
+    }
+    
+}
+
+/**
+ * Load customer dashboard statistics
+ */
+async function loadCustomerDashboardStats() {
+    
+    try {
+        
+        console.log('Loading customer dashboard stats...');
+        
+        const result = await callServer('getCustomerDashboardStats');
+        
+        console.log('Dashboard stats result:', result);
+        
+        if (result && result.success) {
+            const stats = result.data;
+            
+            console.log('Dashboard stats:', stats);
+            
+            document.getElementById('totalCustomersCount').textContent = stats.totalCustomers || 0;
+            document.getElementById('newMonthCount').textContent = stats.newThisMonth || 0;
+            document.getElementById('repeatCount').textContent = stats.repeatCustomers || 0;
+            document.getElementById('inactiveCount').textContent = stats.inactiveCustomers || 0;
+        }
+        
+    } catch (e) {
+        console.error('Error loading customer stats:', e);
+    }
+    
+}
+
+/**
+ * Filter customers by type
+ */
+function filterCustomers(filterType) {
+    
+    currentCustomerFilter = filterType;
+    
+    // Update active filter button
+    document.querySelectorAll('.btn-group .btn').forEach(function(btn) {
+        btn.classList.remove('active');
+    });
+    
+    event.target.classList.add('active');
+    
+    applyCustomerFilters();
+    
+}
+
+/**
+ * Apply all customer filters
+ */
+function applyCustomerFilters() {
+    
+    if (!customersLoaded && !customersLoading) {
+        loadCustomers();
+        return;
+    }
+    
+    if (customersLoading) {
+        return;
+    }
+    
+    let filtered = allCustomersData || [];
+    
+    // Apply type filter
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    filtered = filtered.filter(function(customer) {
+        
+        switch(currentCustomerFilter) {
+            case 'active':
+                return (customer.Status || 'Active').toLowerCase() === 'active';
+                
+            case 'inactive':
+                return (customer.Status || '').toLowerCase() === 'inactive';
+                
+            case 'repeat':
+                return customer.TotalBookings > 1;
+                
+            case 'newMonth':
+                const since = customer.CustomerSince ? new Date(customer.CustomerSince) : null;
+                return since && since >= startOfMonth;
+                
+            case 'upcoming':
+                return customer.UpcomingEvents > 0;
+                
+            case 'pending':
+                return customer.PendingAmount > 0;
+                
+            case 'all':
+            default:
+                return true;
+        }
+        
+    });
+    
+    // Apply text search
+    const searchInput = document.getElementById('customerSearch');
+    const searchText = searchInput ? searchInput.value.trim() : '';
+    
+    if (searchText) {
+        const searchLower = searchText.toLowerCase();
+        filtered = filtered.filter(function(customer) {
+            return String(customer.CustomerName || '').toLowerCase().includes(searchLower) ||
+                   String(customer.Mobile || '').toLowerCase().includes(searchLower) ||
+                   String(customer.CustomerID || '').toLowerCase().includes(searchLower) ||
+                   String(customer.AlternateMobile || '').toLowerCase().includes(searchLower);
+        });
+    }
+    
+    // Apply sorting
+    filtered = sortCustomerArray(filtered, currentCustomerSort.field, currentCustomerSort.order);
+    
+    // Update filter badge
+    updateCustomerFilterBadge();
+    
+    // Render table
+    renderCustomerTable(filtered);
+    
+}
+
+/**
+ * Sort customers
+ */
+function sortCustomers(field) {
+    
+    if (currentCustomerSort.field === field) {
+        currentCustomerSort.order = currentCustomerSort.order === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentCustomerSort.field = field;
+        currentCustomerSort.order = 'asc';
+    }
+    
+    applyCustomerFilters();
+    
+}
+
+/**
+ * Sort customer array
+ */
+function sortCustomerArray(customers, field, order) {
+    
+    return customers.sort(function(a, b) {
+        
+        let aVal, bVal;
+        
+        switch(field) {
+            case 'name':
+                aVal = (a.CustomerName || '').toLowerCase();
+                bVal = (b.CustomerName || '').toLowerCase();
+                break;
+                
+            case 'since':
+                aVal = a.CustomerSince ? new Date(a.CustomerSince) : new Date(0);
+                bVal = b.CustomerSince ? new Date(b.CustomerSince) : new Date(0);
+                break;
+                
+            case 'bookings':
+                aVal = a.TotalBookings || 0;
+                bVal = b.TotalBookings || 0;
+                break;
+                
+            case 'revenue':
+                aVal = a.TotalRevenue || 0;
+                bVal = b.TotalRevenue || 0;
+                break;
+                
+            default:
+                return 0;
+        }
+        
+        if (order === 'asc') {
+            return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+        } else {
+            return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+        }
+        
+    });
+    
+}
+
+/**
+ * Update customer filter badge
+ */
+function updateCustomerFilterBadge() {
+    
+    const badge = document.getElementById('activeCustomerFilter');
+    const badgeText = document.getElementById('customerFilterText');
+    
+    if (!badge || !badgeText) return;
+    
+    const filterNames = {
+        'all': 'All Customers',
+        'active': 'Active Customers',
+        'inactive': 'Inactive Customers',
+        'repeat': 'Repeat Customers',
+        'newMonth': 'New This Month',
+        'upcoming': 'Customers with Upcoming Events',
+        'pending': 'Customers with Pending Payments'
+    };
+    
+    if (currentCustomerFilter !== 'all') {
+        badgeText.textContent = filterNames[currentCustomerFilter] || 'Filtered';
+        badge.style.display = 'block';
+    } else {
+        badge.style.display = 'none';
+    }
+    
+}
+
+/**
+ * Render customer table
+ */
+function renderCustomerTable(customers) {
+    
+    const tbody = document.getElementById('customerTable');
+    
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    if (!customers || !customers.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="12" class="text-center text-muted py-5">
+                    No customers found
+                </td>
+            </tr>
+        `;
+        document.getElementById('customerCount').textContent = 'Total Customers : 0';
+        return;
+    }
+    
+    customers.forEach(function(customer) {
+        
+        const statusBadge = customer.Status === 'Active' || !customer.Status ? 
+            '<span class="badge bg-success">Active</span>' : 
+            '<span class="badge bg-secondary">Inactive</span>';
+        
+        tbody.innerHTML += `
+            <tr>
+                <td><small>${customer.CustomerID || ''}</small></td>
+                <td class="fw-medium">${customer.CustomerName || ''}</td>
+                <td>${customer.Mobile || ''}</td>
+                <td><small>${customer.AlternateMobile || '-'}</small></td>
+                <td><small>${customer.CustomerSince || '-'}</small></td>
+                <td class="text-center">
+                    <span class="badge bg-primary" style="cursor: pointer;" onclick="showCustomerBookings('${customer.CustomerID}', '${customer.CustomerName}', 'all')" title="View all bookings">
+                        ${customer.TotalBookings || 0}
+                    </span>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-info" style="cursor: pointer;" onclick="showCustomerBookings('${customer.CustomerID}', '${customer.CustomerName}', 'upcoming')" title="View upcoming bookings">
+                        ${customer.UpcomingEvents || 0}
+                    </span>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-success" style="cursor: pointer;" onclick="showCustomerBookings('${customer.CustomerID}', '${customer.CustomerName}', 'completed')" title="View completed bookings">
+                        ${customer.CompletedEvents || 0}
+                    </span>
+                </td>
+                <td class="text-end">₹ ${Number(customer.TotalRevenue || 0).toLocaleString()}</td>
+                <td class="text-end ${customer.PendingAmount > 0 ? 'text-danger fw-medium' : ''}">
+                    ₹ ${Number(customer.PendingAmount || 0).toLocaleString()}
+                </td>
+                <td class="text-center">${statusBadge}</td>
+                <td class="text-center">
+                    <div class="d-flex justify-content-center gap-2">
+                        <button class="customer-action-btn bg-info text-white" 
+                                onclick="viewCustomerProfile('${customer.CustomerID}')" 
+                                title="View Profile">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="customer-action-btn bg-success text-white" 
+                                onclick="newBookingFromCustomer('${customer.CustomerID}')" 
+                                title="New Booking">
+                            <i class="bi bi-plus-circle"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+        
+    });
+    
+    document.getElementById('customerCount').textContent = 'Total Customers : ' + customers.length;
+    
+}
+
+/**
+ * View customer profile
+ */
+async function viewCustomerProfile(customerId) {
+    
+    try {
+        
+        currentCustomerId = customerId;
+        
+        // Show loading state
+        showToast('Loading customer profile...', 'info');
+        
+        // Get customer details
+        const result = await callServer('getCustomerById', customerId);
+        
+        if (!result || !result.success) {
+            showToast(result ? result.message : 'Failed to load customer', 'danger');
+            return;
+        }
+        
+        const customer = result.data;
+        
+        // Populate customer information
+        document.getElementById('customerProfileId').textContent = customer.CustomerID;
+        document.getElementById('profileCustomerName').textContent = customer.CustomerName || '-';
+        document.getElementById('profileMobile').textContent = customer.Mobile || '-';
+        document.getElementById('profileAlternateMobile').textContent = customer.AlternateMobile || '-';
+        document.getElementById('profileEmail').textContent = customer.Email || '-';
+        document.getElementById('profileAddress').textContent = customer.Address || '-';
+        document.getElementById('profileCustomerSince').textContent = customer.CustomerSince || '-';
+        
+        const statusBadge = document.getElementById('profileStatus');
+        statusBadge.textContent = customer.Status || 'Active';
+        statusBadge.className = 'badge ' + (customer.Status === 'Active' || !customer.Status ? 'bg-success' : 'bg-secondary');
+        
+        // Populate statistics
+        document.getElementById('statTotalBookings').textContent = customer.TotalBookings || 0;
+        document.getElementById('statCompleted').textContent = customer.CompletedEvents || 0;
+        document.getElementById('statUpcoming').textContent = customer.UpcomingEvents || 0;
+        document.getElementById('statCancelled').textContent = customer.CancelledEvents || 0;
+        
+        // Populate payment summary
+        document.getElementById('paymentTotalRevenue').textContent = '₹ ' + Number(customer.TotalRevenue || 0).toLocaleString();
+        document.getElementById('paymentReceived').textContent = '₹ ' + Number(customer.AmountReceived || 0).toLocaleString();
+        document.getElementById('paymentPending').textContent = '₹ ' + Number(customer.PendingAmount || 0).toLocaleString();
+        document.getElementById('paymentAverage').textContent = '₹ ' + Number(customer.AverageBookingValue || 0).toLocaleString();
+        
+        // Load booking history
+        await loadCustomerBookingHistory(customerId);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('customerProfileModal'));
+        modal.show();
+        
+    } catch (e) {
+        console.error('Error viewing customer profile:', e);
+        showToast('Unable to load customer profile: ' + e.message, 'danger');
+    }
+    
+}
+
+/**
+ * Load customer booking history
+ */
+async function loadCustomerBookingHistory(customerId) {
+    
+    try {
+        
+        const result = await callServer('getCustomerBookings', customerId);
+        
+        if (!result || !result.success) {
+            document.getElementById('bookingHistoryTimeline').innerHTML = '<div class="text-center text-danger py-4">Failed to load booking history</div>';
+            return;
+        }
+        
+        let bookings = result.data || [];
+        
+        bookings = bookings.map(applyBusinessRules);
+        
+        document.getElementById('historyCount').textContent = bookings.length + ' Booking' + (bookings.length !== 1 ? 's' : '');
+        
+        if (bookings.length === 0) {
+            document.getElementById('bookingHistoryTimeline').innerHTML = '<div class="text-center text-muted py-4">No bookings found</div>';
+            return;
+        }
+        
+        let html = '';
+        
+        bookings.forEach(function(booking) {
+            
+            const statusClass = booking.BookingStatus === 'Confirmed' ? 'success' : 
+                              booking.BookingStatus === 'Pending' ? 'warning' : 'secondary';
+            
+            html += `
+                <div class="timeline-item">
+                    <div class="timeline-date">
+                        <i class="bi bi-calendar3"></i> ${booking.EventDate || '-'}
+                    </div>
+                    <div class="timeline-content">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <strong>${booking.BookingNo || ''}</strong> - ${booking.EventType || ''}
+                                <br>
+                                <small class="text-muted"><i class="bi bi-geo-alt"></i> ${booking.Venue || '-'}</small>
+                            </div>
+                            <span class="badge bg-${statusClass}">${booking.BookingStatus || ''}</span>
+                        </div>
+                        <div class="row g-2 small">
+                            <div class="col-4">
+                                <strong>Budget:</strong> ₹${Number(booking.Budget || 0).toLocaleString()}
+                            </div>
+                            <div class="col-4">
+                                <strong>Advance:</strong> ₹${Number(booking.AdvanceAmount || 0).toLocaleString()}
+                            </div>
+                            <div class="col-4">
+                                <strong>Balance:</strong> ₹${Number(booking.BalanceAmount || 0).toLocaleString()}
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewBookingFromCustomer('${booking.BookingID}')">
+                                <i class="bi bi-eye"></i> View Details
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+        });
+        
+        document.getElementById('bookingHistoryTimeline').innerHTML = html;
+        
+    } catch (e) {
+        console.error('Error loading booking history:', e);
+        document.getElementById('bookingHistoryTimeline').innerHTML = '<div class="text-center text-danger py-4">Error loading history</div>';
+    }
+    
+}
+
+/**
+ * Edit customer from profile
+ */
+function editCustomerFromProfile() {
+    
+    if (!currentCustomerId) return;
+    
+    editCustomer(currentCustomerId);
+    
+}
+
+/**
+ * Edit customer
+ */
+async function editCustomer(customerId) {
+    
+    try {
+        
+        const result = await callServer('getCustomerById', customerId);
+        
+        if (!result || !result.success) {
+            showToast('Failed to load customer', 'danger');
+            return;
+        }
+        
+        const customer = result.data;
+        
+        document.getElementById('editCustomerId').value = customer.CustomerID;
+        document.getElementById('editCustomerIdDisplay').value = customer.CustomerID;
+        document.getElementById('editCustomerName').value = customer.CustomerName || '';
+        document.getElementById('editMobileDisplay').value = customer.Mobile || '';
+        document.getElementById('editAlternateMobile').value = customer.AlternateMobile || '';
+        document.getElementById('editEmail').value = customer.Email || '';
+        document.getElementById('editAddress').value = customer.Address || '';
+        document.getElementById('editStatus').value = customer.Status || 'Active';
+        
+        const modal = new bootstrap.Modal(document.getElementById('editCustomerModal'));
+        modal.show();
+        
+    } catch (e) {
+        console.error('Error editing customer:', e);
+        showToast('Unable to edit customer: ' + e.message, 'danger');
+    }
+    
+}
+
+/**
+ * Save customer changes
+ */
+async function saveCustomerChanges() {
+    
+    try {
+        
+        const customerId = document.getElementById('editCustomerId').value;
+        const customerName = document.getElementById('editCustomerName').value.trim();
+        
+        if (!customerName) {
+            showToast('Customer name is required', 'warning');
+            return;
+        }
+        
+        const data = {
+            customerName: customerName,
+            alternateMobile: document.getElementById('editAlternateMobile').value.trim(),
+            email: document.getElementById('editEmail').value.trim(),
+            address: document.getElementById('editAddress').value.trim(),
+            status: document.getElementById('editStatus').value
+        };
+        
+        const result = await callServer('updateCustomer', customerId, data);
+        
+        if (!result || !result.success) {
+            showToast(result ? result.message : 'Failed to update customer', 'danger');
+            return;
+        }
+        
+        showToast('Customer updated successfully', 'success');
+        
+        // Close edit modal
+        const editModal = bootstrap.Modal.getInstance(document.getElementById('editCustomerModal'));
+        if (editModal) editModal.hide();
+        
+        // Reload customer list
+        await loadCustomers();
+        
+        // Reload profile if open
+        if (currentCustomerId === customerId) {
+            await viewCustomerProfile(customerId);
+        }
+        
+    } catch (e) {
+        console.error('Error saving customer:', e);
+        showToast('Unable to save customer: ' + e.message, 'danger');
+    }
+    
+}
+
+/**
+ * New booking from customer
+ */
+async function newBookingFromCustomer(customerId) {
+    
+    try {
+        
+        if (!customerId && currentCustomerId) {
+            customerId = currentCustomerId;
+        }
+        
+        const result = await callServer('getCustomerById', customerId);
+        
+        if (!result || !result.success) {
+            showToast('Failed to load customer', 'danger');
+            return;
+        }
+        
+        const customer = result.data;
+        
+        // Close profile modal if open
+        const profileModal = bootstrap.Modal.getInstance(document.getElementById('customerProfileModal'));
+        if (profileModal) profileModal.hide();
+        
+        // Open booking form
+        openBookingForm();
+        
+        // Prefill customer data
+        setTimeout(function() {
+            document.getElementById('customerName').value = customer.CustomerName || '';
+            document.getElementById('mobile').value = customer.Mobile || '';
+            document.getElementById('alternateMobile').value = customer.AlternateMobile || '';
+            document.getElementById('email').value = customer.Email || '';
+            document.getElementById('address').value = customer.Address || '';
+            
+            // Trigger customer lookup
+            const mobileInput = document.getElementById('mobile');
+            if (mobileInput) {
+                const event = new Event('keyup');
+                mobileInput.dispatchEvent(event);
+            }
+        }, 500);
+        
+    } catch (e) {
+        console.error('Error creating booking from customer:', e);
+        showToast('Unable to create booking: ' + e.message, 'danger');
+    }
+    
+}
+
+/**
+ * View booking from customer profile
+ */
+function viewBookingFromCustomer(bookingId) {
+    
+    viewBooking(bookingId);
+    
+    const bookingModalElement = document.getElementById('bookingModal');
+    if (bookingModalElement) {
+        bookingModalElement.addEventListener('shown.bs.modal', function adjustZIndex() {
+            bookingModalElement.style.zIndex = '1065';
+            const bookingBackdrop = document.querySelector('.modal-backdrop:last-of-type');
+            if (bookingBackdrop) {
+                bookingBackdrop.style.zIndex = '1060';
+            }
+            bookingModalElement.removeEventListener('shown.bs.modal', adjustZIndex);
+        }, { once: true });
+    }
+    
+}
+
+/**
+ * Customer Bookings Drill-down
+ */
+let customerBookingsData = [];
+let customerBookingsFilter = 'all';
+let customerBookingsSortDir = 'desc';
+
+function showCustomerBookings(customerId, customerName, filterType) {
+    
+    customerBookingsFilter = filterType;
+    
+    document.getElementById('customerBookingsModalLabel').textContent = customerName;
+    
+    const subtitles = {
+        'all': 'Showing All Bookings',
+        'upcoming': 'Showing Upcoming Bookings',
+        'completed': 'Showing Completed Bookings'
+    };
+    document.getElementById('customerBookingsSubtitle').textContent = subtitles[filterType] || 'Showing All Bookings';
+    
+    document.getElementById('customerBookingsTableBody').innerHTML = 
+        '<tr><td colspan="10" class="text-center text-muted py-4">Loading bookings...</td></tr>';
+    
+    const modal = new bootstrap.Modal(document.getElementById('customerBookingsModal'));
+    modal.show();
+    
+    google.script.run
+        .withSuccessHandler(function(response) {
+            if (response.success && response.data) {
+                customerBookingsData = (response.data || []).map(applyBusinessRules);
+                renderCustomerBookings();
+            } else {
+                document.getElementById('customerBookingsTableBody').innerHTML = 
+                    '<tr><td colspan="10" class="text-center text-danger py-4">Failed to load bookings</td></tr>';
+            }
+        })
+        .withFailureHandler(function(error) {
+            console.error('Error loading customer bookings:', error);
+            document.getElementById('customerBookingsTableBody').innerHTML = 
+                '<tr><td colspan="10" class="text-center text-danger py-4">Error: ' + error.message + '</td></tr>';
+        })
+        .getCustomerBookings(customerId);
+    
+}
+
+function renderCustomerBookings() {
+    
+    let bookings = [...customerBookingsData].map(applyBusinessRules);
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (customerBookingsFilter === 'upcoming') {
+        bookings = bookings.filter(b => {
+            const eventDate = b.EventDate ? new Date(b.EventDate) : null;
+            return eventDate && eventDate >= today;
+        });
+    } else if (customerBookingsFilter === 'completed') {
+        bookings = bookings.filter(b => (b.BookingStatus || '').toLowerCase() === 'completed');
+    }
+    
+    const searchText = (document.getElementById('customerBookingsSearch').value || '').toLowerCase();
+    if (searchText) {
+        bookings = bookings.filter(b => 
+            (b.BookingID || '').toLowerCase().includes(searchText) ||
+            (b.EventType || '').toLowerCase().includes(searchText) ||
+            (b.Venue || '').toLowerCase().includes(searchText) ||
+            (b.PaymentStatus || '').toLowerCase().includes(searchText) ||
+            (b.BookingStatus || '').toLowerCase().includes(searchText)
+        );
+    }
+    
+    document.getElementById('customerBookingsCount').textContent = `Total: ${bookings.length} booking${bookings.length !== 1 ? 's' : ''}`;
+    
+    if (bookings.length === 0) {
+        document.getElementById('customerBookingsTableBody').innerHTML = 
+            '<tr><td colspan="10" class="text-center text-muted py-4">No bookings found</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    bookings.forEach(booking => {
+        const balance = (booking.Budget || 0) - (booking.AdvanceAmount || 0);
+        const paymentStatusClass = (booking.PaymentStatus || '').toLowerCase() === 'paid' ? 'bg-success' : 
+                                   (booking.PaymentStatus || '').toLowerCase() === 'pending' ? 'bg-warning' : 'bg-secondary';
+        const bookingStatusClass = (booking.BookingStatus || '').toLowerCase() === 'confirmed' ? 'bg-primary' : 
+                                   (booking.BookingStatus || '').toLowerCase() === 'completed' ? 'bg-success' : 
+                                   (booking.BookingStatus || '').toLowerCase() === 'cancelled' ? 'bg-danger' : 'bg-secondary';
+        
+        html += `
+            <tr>
+                <td><strong>${booking.BookingID || ''}</strong></td>
+                <td>${booking.EventType || ''}</td>
+                <td>${booking.EventDate || ''}</td>
+                <td><small>${booking.Venue || ''}</small></td>
+                <td class="text-end">₹ ${Number(booking.Budget || 0).toLocaleString()}</td>
+                <td class="text-end">₹ ${Number(booking.AdvanceAmount || 0).toLocaleString()}</td>
+                <td class="text-end ${balance > 0 ? 'text-danger' : ''}">₹ ${Number(balance).toLocaleString()}</td>
+                <td><span class="badge ${paymentStatusClass}">${booking.PaymentStatus || 'Pending'}</span></td>
+                <td><span class="badge ${bookingStatusClass}">${booking.BookingStatus || 'Pending'}</span></td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-info" onclick="viewBookingFromCustomerDrilldown('${booking.BookingID}')" title="View">
+                        👁
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="editBookingFromCustomerDrilldown('${booking.BookingID}')" title="Edit">
+                        ✏
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    document.getElementById('customerBookingsTableBody').innerHTML = html;
+    
+}
+
+function sortCustomerBookings(column) {
+    
+    if (column === 'eventDate') {
+        customerBookingsSortDir = customerBookingsSortDir === 'asc' ? 'desc' : 'asc';
+        
+        customerBookingsData.sort((a, b) => {
+            const dateA = a.EventDate ? new Date(a.EventDate) : new Date(0);
+            const dateB = b.EventDate ? new Date(b.EventDate) : new Date(0);
+            return customerBookingsSortDir === 'asc' ? dateA - dateB : dateB - dateA;
+        });
+        
+        document.getElementById('sortIconEventDate').textContent = customerBookingsSortDir === 'asc' ? '↑' : '↓';
+        
+        renderCustomerBookings();
+    }
+    
+}
+
+function viewBookingFromCustomerDrilldown(bookingId) {
+    
+    viewBooking(bookingId);
+    
+    const bookingModalElement = document.getElementById('bookingModal');
+    if (bookingModalElement) {
+        bookingModalElement.addEventListener('shown.bs.modal', function adjustZIndex() {
+            bookingModalElement.style.zIndex = '1075';
+            const bookingBackdrop = document.querySelector('.modal-backdrop:last-of-type');
+            if (bookingBackdrop) {
+                bookingBackdrop.style.zIndex = '1070';
+            }
+            bookingModalElement.removeEventListener('shown.bs.modal', adjustZIndex);
+        }, { once: true });
+    }
+    
+}
+
+function editBookingFromCustomerDrilldown(bookingId) {
+    
+    editBooking(bookingId);
+    
+    const bookingModalElement = document.getElementById('bookingModal');
+    if (bookingModalElement) {
+        bookingModalElement.addEventListener('shown.bs.modal', function adjustZIndex() {
+            bookingModalElement.style.zIndex = '1075';
+            const bookingBackdrop = document.querySelector('.modal-backdrop:last-of-type');
+            if (bookingBackdrop) {
+                bookingBackdrop.style.zIndex = '1070';
+            }
+            bookingModalElement.removeEventListener('shown.bs.modal', adjustZIndex);
+        }, { once: true });
+        
+        bookingModalElement.addEventListener('hidden.bs.modal', function refreshAfterEdit() {
+            
+            loadCustomers();
+            if (currentCustomerId) {
+                google.script.run
+                    .withSuccessHandler(function(response) {
+                        if (response.success && response.data) {
+                            const customerId = response.data.CustomerID;
+                            const customerName = response.data.CustomerName;
+                            showCustomerBookings(customerId, customerName, customerBookingsFilter);
+                        }
+                    })
+                    .getCustomerById(currentCustomerId);
+            }
+            if (typeof loadBookings === 'function') {
+                loadBookings();
+            }
+            
+            bookingModalElement.removeEventListener('hidden.bs.modal', refreshAfterEdit);
+        }, { once: true });
+    }
+    
+}
+
+document.getElementById('customerBookingsSearch')?.addEventListener('keyup', function() {
+    renderCustomerBookings();
+});
+
+/**
+ * Payment Ledger Functions
+ */
+async function loadPaymentHistory(bookingId) {
+    
+    try {
+        
+        const result = await callServer('getPaymentHistory', bookingId);
+        
+        if (result && result.success && result.data) {
+            displayPaymentHistory(result.data);
+        } else {
+            document.getElementById('paymentHistoryTableBody').innerHTML = 
+                '<tr><td colspan="6" class="text-center text-muted py-3">No payment history available</td></tr>';
+        }
+        
+    } catch (e) {
+        console.error('Error loading payment history:', e);
+    }
+    
+}
+
+function displayPaymentHistory(payments) {
+    
+    const tbody = document.getElementById('paymentHistoryTableBody');
+    
+    if (!payments || payments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No payment history available</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    
+    payments.forEach(payment => {
+        html += `
+            <tr>
+                <td>${payment.PaymentDate || '-'}</td>
+                <td class="text-end"><strong>₹ ${Number(payment.Amount || 0).toLocaleString()}</strong></td>
+                <td>${payment.PaymentMode || '-'}</td>
+                <td><small>${payment.ReferenceNo || '-'}</small></td>
+                <td><small>${payment.Remarks || '-'}</small></td>
+                <td><small>${payment.CreatedBy || '-'}</small></td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    
+}
+
+async function addNewPayment() {
+    
+    try {
+        
+        const amount = document.getElementById('newPaymentAmount').value;
+        const paymentDate = document.getElementById('newPaymentDate').value;
+        const paymentMode = document.getElementById('newPaymentMode').value;
+        const referenceNo = document.getElementById('newPaymentReference').value;
+        const remarks = document.getElementById('newPaymentRemarks').value;
+        
+        if (!amount || Number(amount) <= 0) {
+            showToast('Please enter a valid payment amount', 'warning');
+            return;
+        }
+        
+        if (!paymentDate) {
+            showToast('Please select payment date', 'warning');
+            return;
+        }
+        
+        if (!paymentMode) {
+            showToast('Please select payment mode', 'warning');
+            return;
+        }
+        
+        if (!currentBookingId) {
+            showToast('Booking ID not found', 'danger');
+            return;
+        }
+        
+        const paymentData = {
+            bookingId: currentBookingId,
+            amount: Number(amount),
+            paymentDate: paymentDate,
+            paymentMode: paymentMode,
+            referenceNo: referenceNo,
+            remarks: remarks
+        };
+        
+        const result = await callServer('addPayment', paymentData);
+        
+        if (result && result.success) {
+            
+            const paymentAmount = Number(amount);
+            showToast('Payment of ₹' + paymentAmount.toLocaleString('en-IN') + ' added successfully', 'success');
+            
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('newPaymentAmount').value = '';
+            document.getElementById('newPaymentDate').value = today;
+            document.getElementById('newPaymentMode').selectedIndex = 0;
+            document.getElementById('newPaymentReference').value = '';
+            document.getElementById('newPaymentRemarks').value = '';
+            
+            const budget = Number(document.getElementById('budget').value || 0);
+            const totalPaid = Number(result.data.totalPaid || 0);
+            const balance = Number(result.data.balance || 0);
+            const eventDate = document.getElementById('eventDate').value;
+            
+            const bookingAmountDisplay = document.getElementById('bookingAmountDisplay');
+            const advanceAmountDisplay = document.getElementById('advanceAmountDisplay');
+            const balanceAmountDisplay = document.getElementById('balanceAmountDisplay');
+            const paymentStatusDisplay = document.getElementById('paymentStatusDisplay');
+            
+            if (bookingAmountDisplay) {
+                bookingAmountDisplay.textContent = '₹ ' + (isFinite(budget) ? budget : 0).toLocaleString('en-IN');
+            }
+            
+            if (advanceAmountDisplay) {
+                advanceAmountDisplay.textContent = '₹ ' + (isFinite(totalPaid) ? totalPaid : 0).toLocaleString('en-IN');
+            }
+            
+            if (balanceAmountDisplay) {
+                balanceAmountDisplay.textContent = '₹ ' + (isFinite(balance) ? balance : 0).toLocaleString('en-IN');
+            }
+            
+            const statusResult = recalculateStatuses(budget, totalPaid, 'Pending', 'Pending', eventDate);
+            
+            if (paymentStatusDisplay) {
+                paymentStatusDisplay.textContent = statusResult.paymentStatus;
+            }
+            
+            await loadPaymentHistory(currentBookingId);
+            
+            if (typeof loadBookings === 'function') {
+                loadBookings();
+            }
+            
+            if (typeof loadCustomers === 'function') {
+                loadCustomers();
+            }
+            
+        } else {
+            showToast(result.message || 'Failed to add payment', 'danger');
+        }
+        
+    } catch (e) {
+        console.error('Error adding payment:', e);
+        showToast('Error adding payment: ' + e.message, 'danger');
+    }
+    
+}
+
+async function migrateOldBookingPayment(bookingId) {
+    
+    try {
+        const result = await callServer('migrateBookingPayment', bookingId);
+        return result && result.success;
+    } catch (e) {
+        console.error('Error migrating payment:', e);
+        return false;
+    }
+    
+}
+
+function setupPaymentLedger() {
+    
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('newPaymentDate').value = today;
+    
+    if (isViewMode) {
+        document.getElementById('addPaymentSection').style.display = 'none';
+        document.getElementById('paymentHistorySection').style.display = 'block';
+    } else {
+        document.getElementById('addPaymentSection').style.display = 'block';
+        document.getElementById('paymentHistorySection').style.display = 'block';
+    }
+    
+}
 
 </script>

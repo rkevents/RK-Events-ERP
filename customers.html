@@ -1,0 +1,264 @@
+<!-- ==========================================================
+RK EVENTS ERP
+customers.html - Customer Management Module
+=========================================================== -->
+
+<div class="container-fluid">
+
+    <!-- Back to Dashboard -->
+    <div class="mb-3">
+        <button 
+            class="btn btn-outline-secondary btn-sm"
+            onclick="navigateToDashboard()">
+            <i class="bi bi-arrow-left me-2"></i>
+            Back to Dashboard
+        </button>
+    </div>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">
+                Customer Management
+            </h2>
+            <p class="text-muted mb-0">
+                View and manage all customers
+            </p>
+        </div>
+    </div>
+
+    <!-- Customer Dashboard Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card cursor-pointer" onclick="filterCustomers('all')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-muted small mb-1">Total Customers</div>
+                            <h3 class="mb-0" id="totalCustomersCount">0</h3>
+                        </div>
+                        <div class="dashboard-icon bg-primary">
+                            <i class="bi bi-people"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card cursor-pointer" onclick="filterCustomers('newMonth')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-muted small mb-1">New This Month</div>
+                            <h3 class="mb-0" id="newMonthCount">0</h3>
+                        </div>
+                        <div class="dashboard-icon bg-success">
+                            <i class="bi bi-person-plus"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card cursor-pointer" onclick="filterCustomers('repeat')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-muted small mb-1">Repeat Customers</div>
+                            <h3 class="mb-0" id="repeatCount">0</h3>
+                        </div>
+                        <div class="dashboard-icon bg-info">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card dashboard-card cursor-pointer" onclick="filterCustomers('inactive')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-muted small mb-1">Inactive</div>
+                            <h3 class="mb-0" id="inactiveCount">0</h3>
+                        </div>
+                        <div class="dashboard-icon bg-secondary">
+                            <i class="bi bi-person-x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter and Search -->
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-lg-6">
+                    <input
+                        type="text"
+                        id="customerSearch"
+                        class="form-control form-control-sm"
+                        placeholder="🔍 Search by Customer Name / Mobile / Customer ID"
+                        onkeyup="applyCustomerFilters()">
+                </div>
+
+                <div class="col-lg-6 text-end">
+                    <div class="btn-group btn-group-sm me-2" role="group">
+                        <button class="btn btn-outline-primary active" onclick="filterCustomers('all')">All</button>
+                        <button class="btn btn-outline-primary" onclick="filterCustomers('active')">Active</button>
+                        <button class="btn btn-outline-primary" onclick="filterCustomers('inactive')">Inactive</button>
+                    </div>
+
+                    <div class="btn-group btn-group-sm me-2" role="group">
+                        <button class="btn btn-outline-success" onclick="filterCustomers('repeat')">Repeat</button>
+                        <button class="btn btn-outline-info" onclick="filterCustomers('upcoming')">Upcoming</button>
+                        <button class="btn btn-outline-warning" onclick="filterCustomers('pending')">Pending</button>
+                    </div>
+
+                    <button
+                        class="btn btn-outline-primary btn-sm"
+                        onclick="loadCustomers()">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Filter Badge -->
+    <div id="activeCustomerFilter" class="filter-badge-container" style="display: none;">
+        <div class="filter-badge">
+            <span class="filter-badge-label">Showing:</span>
+            <span id="customerFilterText" class="filter-badge-text">All Customers</span>
+            <button class="filter-badge-clear" onclick="filterCustomers('all')">
+                <i class="bi bi-x-circle"></i> Clear Filter
+            </button>
+        </div>
+    </div>
+
+    <!-- Customer Table -->
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:100px">Customer ID</th>
+                            <th style="width:180px">
+                                <a href="javascript:void(0)" onclick="sortCustomers('name')" class="text-decoration-none text-dark">
+                                    Customer Name <i class="bi bi-arrow-down-up small"></i>
+                                </a>
+                            </th>
+                            <th style="width:120px">Mobile</th>
+                            <th style="width:120px">Alternate</th>
+                            <th style="width:110px">
+                                <a href="javascript:void(0)" onclick="sortCustomers('since')" class="text-decoration-none text-dark">
+                                    Since <i class="bi bi-arrow-down-up small"></i>
+                                </a>
+                            </th>
+                            <th style="width:80px" class="text-center">
+                                <a href="javascript:void(0)" onclick="sortCustomers('bookings')" class="text-decoration-none text-dark">
+                                    Bookings <i class="bi bi-arrow-down-up small"></i>
+                                </a>
+                            </th>
+                            <th style="width:90px" class="text-center">Upcoming</th>
+                            <th style="width:90px" class="text-center">Completed</th>
+                            <th style="width:110px" class="text-end">
+                                <a href="javascript:void(0)" onclick="sortCustomers('revenue')" class="text-decoration-none text-dark">
+                                    Revenue <i class="bi bi-arrow-down-up small"></i>
+                                </a>
+                            </th>
+                            <th style="width:110px" class="text-end">Pending</th>
+                            <th style="width:100px" class="text-center">Status</th>
+                            <th style="width:120px" class="text-center">Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="customerTable">
+                        <tr>
+                            <td colspan="12" class="text-center text-muted py-5">
+                                Loading customers...
+                            </td>
+                        </tr>
+                    </tbody>
+
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="12">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span id="customerCount">
+                                        Total Customers : 0
+                                    </span>
+                                    <small class="text-muted">
+                                        RK Events ERP
+                                    </small>
+                                </div>
+                            </th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Customer Bookings Drill-down Modal -->
+<div class="modal fade" id="customerBookingsModal" tabindex="-1" aria-labelledby="customerBookingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="customerBookingsModalLabel">Customer Bookings</h5>
+                    <small class="text-muted" id="customerBookingsSubtitle">Showing All Bookings</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="customerBookingsSearch" placeholder="🔍 Search bookings...">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Booking No</th>
+                                <th>Event Type</th>
+                                <th style="cursor: pointer;" onclick="sortCustomerBookings('eventDate')">
+                                    Event Date <span id="sortIconEventDate">↕</span>
+                                </th>
+                                <th>Venue</th>
+                                <th class="text-end">Budget</th>
+                                <th class="text-end">Advance</th>
+                                <th class="text-end">Balance</th>
+                                <th>Payment Status</th>
+                                <th>Booking Status</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customerBookingsTableBody">
+                            <tr>
+                                <td colspan="10" class="text-center text-muted py-4">
+                                    Loading bookings...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span id="customerBookingsCount" class="text-muted me-auto">Total: 0 bookings</span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Profile Modal (included from customerProfile.html) -->
+<div id="customerProfileModalContainer"></div>

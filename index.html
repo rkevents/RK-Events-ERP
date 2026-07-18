@@ -3,8 +3,6 @@
 
 <head>
 
-    <base target="_top">
-
     <meta charset="UTF-8">
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -48,6 +46,11 @@
                 <?!= include("bookings"); ?>
             </div>
 
+            <!-- Customers -->
+            <div id="customersPage" class="app-page" style="display:none;">
+                <?!= include("customers"); ?>
+            </div>
+
         </div>
 
     </div>
@@ -56,8 +59,13 @@
     <div id="toastContainer"
          class="toast-container position-fixed bottom-0 end-0 p-3">
     </div>
-<!-- Booking Modal -->
-<?!= include("bookingForm"); ?> 
+    
+    <!-- Booking Modal -->
+    <?!= include("bookingForm"); ?>
+    
+    <!-- Customer Profile Modal -->
+    <?!= include("customerProfile"); ?>
+    
     <!-- Bootstrap -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 

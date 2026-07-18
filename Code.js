@@ -94,6 +94,12 @@ const SHEET_HEADERS = {
 
     "PaymentStatus",
 
+    "PaymentDate",
+
+    "PaymentMode",
+
+    "PaymentRemarks",
+
     "BookingStatus",
 
     "Remarks",
@@ -242,21 +248,10 @@ function initializeSheets(){
 
 function getDashboardSummary(){
 
-  const bookings = getAll(APP.SHEETS.BOOKINGS);
+  // BUSINESS RULE: Customer count MUST come from Customer Master (not Booking sheet)
+  const customerCount = getCount(APP.SHEETS.CUSTOMERS);
   
-  Logger.log("getDashboardSummary - Total bookings: " + bookings.length);
-  
-  const uniqueCustomerIds = {};
-  bookings.forEach(function(booking) {
-    if (booking.CustomerID) {
-      const customerId = String(booking.CustomerID).trim();
-      uniqueCustomerIds[customerId] = true;
-    }
-  });
-  
-  const customerCount = Object.keys(uniqueCustomerIds).length;
-  
-  Logger.log("Unique customers: " + customerCount);
+  Logger.log("getDashboardSummary - Customer count from Customer Master: " + customerCount);
 
   return{
 
@@ -443,6 +438,8 @@ function searchCustomerByMobile(mobile) {
     
     let lastEventDate = "";
     let eventTypes = [];
+    let outstandingBalance = 0;
+    let isRepeatCustomer = totalBookings > 1;
     
     if (totalBookings > 0) {
       
@@ -461,6 +458,10 @@ function searchCustomerByMobile(mobile) {
           eventTypes.push(b.EventType);
           Logger.log("    eventType added: " + b.EventType);
         }
+        
+        // Calculate outstanding balance
+        const balance = parseFloat(b.BalanceAmount) || 0;
+        outstandingBalance += balance;
       });
     }
     
@@ -468,6 +469,8 @@ function searchCustomerByMobile(mobile) {
     Logger.log("    totalBookings = " + totalBookings);
     Logger.log("    eventTypes = " + eventTypes.join(", "));
     Logger.log("    lastEventDate = " + lastEventDate);
+    Logger.log("    outstandingBalance = " + outstandingBalance);
+    Logger.log("    isRepeatCustomer = " + isRepeatCustomer);
 
     const formatDateValue = function(value) {
       if (!value) return "";
@@ -481,7 +484,9 @@ function searchCustomerByMobile(mobile) {
       customerSince: formatDateValue(customer.CreatedOn),
       totalBookings: totalBookings,
       lastEventDate: formatDateValue(lastEventDate),
-      eventTypes: eventTypes.join(", ")
+      eventTypes: eventTypes.join(", "),
+      outstandingBalance: outstandingBalance,
+      isRepeatCustomer: isRepeatCustomer
     };
     
     Logger.log("14. HISTORY OBJECT CREATED:");
@@ -519,41 +524,186 @@ function searchCustomerByMobile(mobile) {
  * Generate Customer ID
  */
 /*****************************************************************
- * DEBUG UTILITY - TEST CUSTOMER HISTORY
+ * DEBUG UTILITY - DATABASE INTEGRITY AUDIT
  *****************************************************************/
 
 /**
- * Test function to verify customer history calculation
- * Run this from Apps Script to debug
- * 
- * USAGE: Change the mobile number below and click Run
+ * Test specific customer lookup
+ * Traces what backend actually returns
  */
-function testCustomerHistory() {
+function testSpecificCustomer() {
   
-  // ⚠️ CHANGE THIS TO YOUR TEST MOBILE NUMBER ⚠️
-  const mobile = "7358390899";  
+  const testMobile = "9876543210"; // Ramya/CUS00001
   
-  Logger.log("=== TEST CUSTOMER HISTORY ===");
-  Logger.log("Testing mobile: " + mobile);
+  Logger.log("========================================");
+  Logger.log("TESTING CUSTOMER LOOKUP: " + testMobile);
+  Logger.log("========================================");
   
-  const result = searchCustomerByMobile(mobile);
+  const result = searchCustomerByMobile(testMobile);
   
-  Logger.log("Result success: " + result.success);
+  Logger.log("Result returned:");
+  Logger.log("  success: " + result.success);
+  Logger.log("  message: " + result.message);
   
   if (result.data) {
-    Logger.log("Result data: " + JSON.stringify(result.data));
+    Logger.log("  data.exists: " + result.data.exists);
+    Logger.log("  data.isNew: " + result.data.isNew);
+    
+    if (result.data.customer) {
+      Logger.log("  data.customer.CustomerID: " + result.data.customer.CustomerID);
+      Logger.log("  data.customer.CustomerName: " + result.data.customer.CustomerName);
+      Logger.log("  data.customer.Mobile: " + result.data.customer.Mobile);
+    }
     
     if (result.data.history) {
-      const history = result.data.history;
-      Logger.log("--- HISTORY DETAILS ---");
-      Logger.log("Total Bookings: " + history.totalBookings);
-      Logger.log("Last Event Date: " + history.lastEventDate);
-      Logger.log("Previous Events: " + history.eventTypes);
-      Logger.log("Customer Since: " + history.customerSince);
+      Logger.log("  data.history.totalBookings: " + result.data.history.totalBookings);
+      Logger.log("  data.history.eventTypes: " + result.data.history.eventTypes);
+      Logger.log("  data.history.lastEventDate: " + result.data.history.lastEventDate);
+      Logger.log("  data.history.customerSince: " + result.data.history.customerSince);
     }
   }
   
+  Logger.log("");
+  Logger.log("FULL RESULT OBJECT:");
+  Logger.log(JSON.stringify(result));
+  Logger.log("========================================");
+  
   return result;
+}
+
+/**
+ * Complete database integrity audit
+ * Inspects actual data in Google Sheets
+ * Verifies referential integrity between Customers and Bookings
+ */
+function auditDatabaseIntegrity() {
+  
+  Logger.log("========================================");
+  Logger.log("DATABASE INTEGRITY AUDIT");
+  Logger.log("========================================");
+  
+  // Read actual data from sheets
+  const customers = getAll(APP.SHEETS.CUSTOMERS);
+  const bookings = getAll(APP.SHEETS.BOOKINGS);
+  
+  Logger.log("Total Customers: " + customers.length);
+  Logger.log("Total Bookings: " + bookings.length);
+  Logger.log("");
+  
+  // CUSTOMERS SHEET
+  Logger.log("========================================");
+  Logger.log("CUSTOMERS SHEET");
+  Logger.log("========================================");
+  customers.forEach(function(c, i) {
+    Logger.log("Row " + (i+1) + ":");
+    Logger.log("  CustomerID: " + c.CustomerID);
+    Logger.log("  CustomerName: " + c.CustomerName);
+    Logger.log("  Mobile: " + c.Mobile);
+    Logger.log("");
+  });
+  
+  // BOOKINGS SHEET
+  Logger.log("========================================");
+  Logger.log("BOOKINGS SHEET");
+  Logger.log("========================================");
+  bookings.forEach(function(b, i) {
+    Logger.log("Row " + (i+1) + ":");
+    Logger.log("  BookingID: " + b.BookingID);
+    Logger.log("  BookingNo: " + b.BookingNo);
+    Logger.log("  CustomerID: " + b.CustomerID);
+    Logger.log("  CustomerName: " + b.CustomerName);
+    Logger.log("  Mobile: " + b.Mobile);
+    Logger.log("");
+  });
+  
+  // REFERENTIAL INTEGRITY CHECK
+  Logger.log("========================================");
+  Logger.log("REFERENTIAL INTEGRITY CHECK");
+  Logger.log("========================================");
+  
+  const customerIdMap = {};
+  customers.forEach(function(c) {
+    customerIdMap[c.CustomerID] = c;
+  });
+  
+  const missingCustomers = [];
+  bookings.forEach(function(b) {
+    const exists = customerIdMap[b.CustomerID];
+    Logger.log("Booking " + b.BookingNo + " → CustomerID: " + b.CustomerID);
+    if (exists) {
+      Logger.log("  Status: MATCH");
+      Logger.log("  Customer: " + exists.CustomerName);
+    } else {
+      Logger.log("  Status: MISSING");
+      missingCustomers.push(b.CustomerID);
+    }
+    Logger.log("");
+  });
+  
+  // BOOKINGS PER CUSTOMER
+  Logger.log("========================================");
+  Logger.log("BOOKINGS PER CUSTOMER");
+  Logger.log("========================================");
+  
+  const bookingCounts = {};
+  bookings.forEach(function(b) {
+    if (!bookingCounts[b.CustomerID]) {
+      bookingCounts[b.CustomerID] = [];
+    }
+    bookingCounts[b.CustomerID].push(b.BookingNo);
+  });
+  
+  customers.forEach(function(c) {
+    const customerBookings = bookingCounts[c.CustomerID] || [];
+    Logger.log("CustomerID: " + c.CustomerID);
+    Logger.log("  Name: " + c.CustomerName);
+    Logger.log("  Bookings: " + customerBookings.join(", "));
+    Logger.log("  Total: " + customerBookings.length);
+    Logger.log("");
+  });
+  
+  // ORPHANED RECORDS
+  Logger.log("========================================");
+  Logger.log("ORPHANED RECORDS");
+  Logger.log("========================================");
+  
+  if (missingCustomers.length > 0) {
+    Logger.log("⚠️ BOOKINGS WITH MISSING CUSTOMERS:");
+    missingCustomers.forEach(function(id) {
+      Logger.log("  CustomerID: " + id);
+    });
+  } else {
+    Logger.log("✓ All bookings reference existing customers");
+  }
+  Logger.log("");
+  
+  const unusedCustomers = [];
+  customers.forEach(function(c) {
+    if (!bookingCounts[c.CustomerID]) {
+      unusedCustomers.push(c.CustomerID);
+    }
+  });
+  
+  if (unusedCustomers.length > 0) {
+    Logger.log("⚠️ CUSTOMERS WITH NO BOOKINGS:");
+    unusedCustomers.forEach(function(id) {
+      Logger.log("  CustomerID: " + id);
+    });
+  } else {
+    Logger.log("✓ All customers have at least one booking");
+  }
+  
+  Logger.log("");
+  Logger.log("========================================");
+  Logger.log("AUDIT COMPLETE");
+  Logger.log("========================================");
+  
+  return {
+    totalCustomers: customers.length,
+    totalBookings: bookings.length,
+    missingCustomers: missingCustomers.length,
+    unusedCustomers: unusedCustomers.length
+  };
   
 }
 
@@ -582,6 +732,9 @@ function normalizeBookingObject(obj) {
     'advanceamount': 'AdvanceAmount',
     'balanceamount': 'BalanceAmount',
     'paymentstatus': 'PaymentStatus',
+    'paymentdate': 'PaymentDate',
+    'paymentmode': 'PaymentMode',
+    'paymentremarks': 'PaymentRemarks',
     'bookingstatus': 'BookingStatus',
     'remarks': 'Remarks',
     'createdon': 'CreatedOn',
@@ -702,17 +855,21 @@ function createCustomer(data){
   if(existing){
 
       Logger.log("Customer exists - Reusing CustomerID: " + existing.CustomerID);
-
-      update(
-        APP.SHEETS.CUSTOMERS,
-        "CustomerID",
-        existing.CustomerID,
-        {
-          CustomerName: data.customerName,
-          Mobile: normalizedMobile,
-          AlternateMobile: data.alternateMobile || ""
-        }
-      );
+      
+      // BUSINESS RULE: Customer Master is the ONLY source of truth
+      // NEVER update customer name from booking
+      // Only update AlternateMobile if provided
+      
+      if (data.alternateMobile && data.alternateMobile.trim()) {
+        update(
+          APP.SHEETS.CUSTOMERS,
+          "CustomerID",
+          existing.CustomerID,
+          {
+            AlternateMobile: data.alternateMobile.trim()
+          }
+        );
+      }
 
       return existing.CustomerID;
 
@@ -779,6 +936,25 @@ function saveBooking(data){
       return failure("Event Date is required.");
 
     data.mobile = normalizedMobile;
+    
+    // BUSINESS RULE: Validate customer name consistency
+    // If mobile exists, customer name MUST match Customer Master
+    const existingCustomer = findCustomerByMobile(normalizedMobile);
+    
+    if (existingCustomer) {
+      const masterCustomerName = existingCustomer.CustomerName.trim();
+      const typedCustomerName = data.customerName.trim();
+      
+      if (masterCustomerName.toLowerCase() !== typedCustomerName.toLowerCase()) {
+        return failure(
+          "This mobile number already belongs to '" + masterCustomerName + "'. " +
+          "Customer name cannot be changed here. Edit it from Customer Management."
+        );
+      }
+      
+      // Use exact name from Customer Master (preserve case)
+      data.customerName = masterCustomerName;
+    }
 
     const customerId =
       createCustomer(data);
@@ -788,6 +964,22 @@ function saveBooking(data){
 
     const bookingNo =
       generateBookingNumber();
+    
+    const budget = Number(data.budget || 0);
+    const advanceAmount = Number(data.advanceAmount || 0);
+    const balanceAmount = Number(data.balanceAmount || 0);
+    
+    if (!isFinite(budget)) {
+      return failure("Invalid Budget value.");
+    }
+    
+    if (!isFinite(advanceAmount)) {
+      return failure("Invalid Advance Amount value.");
+    }
+    
+    if (!isFinite(balanceAmount)) {
+      return failure("Invalid Balance Amount value.");
+    }
 
     insert(
 
@@ -824,19 +1016,28 @@ function saveBooking(data){
           data.requirement,
 
         Budget :
-          Number(data.budget || 0),
+          budget,
 
         GoogleMap :
-          data.googleMap,
+          data.bookingSource || data.googleMap || "",
 
         AdvanceAmount :
-          Number(data.advanceAmount || 0),
+          advanceAmount,
 
         BalanceAmount :
-          Number(data.balanceAmount || 0),
+          balanceAmount,
 
         PaymentStatus :
           data.paymentStatus,
+
+        PaymentDate :
+          data.paymentDate || "",
+
+        PaymentMode :
+          data.paymentMode || "",
+
+        PaymentRemarks :
+          data.paymentRemarks || "",
 
         BookingStatus :
           data.bookingStatus,
@@ -900,6 +1101,9 @@ function getBookingList() {
           );
         } else if (value === null || value === undefined) {
           result[key] = "";
+        } else if (key === "AdvanceAmount" || key === "AmountReceived" || key === "BalanceAmount" || key === "Budget") {
+          const numValue = Number(value);
+          result[key] = (isFinite(numValue) && !isNaN(numValue)) ? numValue : 0;
         } else {
           result[key] = value;
         }
@@ -962,6 +1166,9 @@ function getBookingById(bookingId) {
           }
         } else if (value === null || value === undefined) {
           serializedBooking[key] = "";
+        } else if (key === "AdvanceAmount" || key === "AmountReceived" || key === "BalanceAmount" || key === "Budget") {
+          const numValue = Number(value);
+          serializedBooking[key] = (isFinite(numValue) && !isNaN(numValue)) ? numValue : 0;
         } else {
           serializedBooking[key] = value;
         }
@@ -1095,8 +1302,51 @@ function updateBooking(data) {
     if (!existing) {
       return failure("Booking not found.");
     }
+    
+    // BUSINESS RULE: Validate customer name consistency during edit
+    // Customer name must match Customer Master
+    const normalizedMobile = normalizeMobile(data.mobile);
+    
+    if (!normalizedMobile) {
+      return failure("Mobile Number must be exactly 10 digits (numbers only).");
+    }
+    
+    const existingCustomer = findCustomerByMobile(normalizedMobile);
+    
+    if (existingCustomer) {
+      const masterCustomerName = existingCustomer.CustomerName.trim();
+      const typedCustomerName = data.customerName.trim();
+      
+      if (masterCustomerName.toLowerCase() !== typedCustomerName.toLowerCase()) {
+        return failure(
+          "This mobile number belongs to '" + masterCustomerName + "'. " +
+          "Customer name cannot be changed here. Edit it from Customer Management."
+        );
+      }
+      
+      // Use exact name from Customer Master
+      data.customerName = masterCustomerName;
+    }
+    
+    data.mobile = normalizedMobile;
 
     const customerId = createCustomer(data);
+    
+    const budget = Number(data.budget || 0);
+    const advanceAmount = Number(data.advanceAmount || 0);
+    const balanceAmount = Number(data.balanceAmount || 0);
+    
+    if (!isFinite(budget)) {
+      return failure("Invalid Budget value.");
+    }
+    
+    if (!isFinite(advanceAmount)) {
+      return failure("Invalid Advance Amount value.");
+    }
+    
+    if (!isFinite(balanceAmount)) {
+      return failure("Invalid Balance Amount value.");
+    }
 
     const updated = update(
       APP.SHEETS.BOOKINGS,
@@ -1112,11 +1362,14 @@ function updateBooking(data) {
         EventTime: data.eventTime,
         Venue: data.venue,
         Requirement: data.requirement,
-        Budget: Number(data.budget || 0),
-        GoogleMap: data.googleMap,
-        AdvanceAmount: Number(data.advanceAmount || 0),
-        BalanceAmount: Number(data.balanceAmount || 0),
+        Budget: budget,
+        GoogleMap: data.bookingSource || data.googleMap || "",
+        AdvanceAmount: advanceAmount,
+        BalanceAmount: balanceAmount,
         PaymentStatus: data.paymentStatus,
+        PaymentDate: data.paymentDate || "",
+        PaymentMode: data.paymentMode || "",
+        PaymentRemarks: data.paymentRemarks || "",
         BookingStatus: data.bookingStatus,
         Remarks: data.remarks || ""
       }
@@ -1478,6 +1731,938 @@ function migrateToSequentialIds() {
       success: false,
       error: e.message
     };
+    
+  }
+  
+}
+
+/******************************************************
+ * CUSTOMER MANAGEMENT MODULE
+ ******************************************************/
+
+/**
+ * REPAIR UTILITY - Fix Booking Customer Names from Customer Master
+ * Business Rule: Customer Master is the ONLY source of truth
+ */
+function repairBookingCustomerNames() {
+  
+  try {
+    
+    Logger.log("=== REPAIR BOOKING CUSTOMER NAMES START ===");
+    
+    const customers = getAll(APP.SHEETS.CUSTOMERS);
+    const bookings = getAll(APP.SHEETS.BOOKINGS);
+    
+    Logger.log("Total Customers: " + customers.length);
+    Logger.log("Total Bookings: " + bookings.length);
+    
+    let updatedCount = 0;
+    let skippedCount = 0;
+    let errorCount = 0;
+    const report = [];
+    
+    bookings.forEach(function(booking) {
+      
+      try {
+        
+        const bookingId = booking.BookingID;
+        const bookingCustomerId = booking.CustomerID;
+        const bookingCustomerName = booking.CustomerName;
+        const bookingMobile = booking.Mobile;
+        
+        // Find matching customer by CustomerID
+        const customer = customers.find(function(c) {
+          return String(c.CustomerID).trim() === String(bookingCustomerId).trim();
+        });
+        
+        if (!customer) {
+          report.push({
+            bookingId: bookingId,
+            status: "ERROR",
+            reason: "Customer not found for CustomerID: " + bookingCustomerId
+          });
+          errorCount++;
+          Logger.log("ERROR: Booking " + bookingId + " - Customer not found: " + bookingCustomerId);
+          return;
+        }
+        
+        const masterCustomerName = customer.CustomerName;
+        
+        // Check if name matches
+        if (String(bookingCustomerName).trim() === String(masterCustomerName).trim()) {
+          report.push({
+            bookingId: bookingId,
+            status: "SKIPPED",
+            reason: "Name already correct"
+          });
+          skippedCount++;
+          return;
+        }
+        
+        // Update booking with correct customer name from master
+        Logger.log("Updating Booking " + bookingId + ": '" + bookingCustomerName + "' → '" + masterCustomerName + "'");
+        
+        update(
+          APP.SHEETS.BOOKINGS,
+          "BookingID",
+          bookingId,
+          { CustomerName: masterCustomerName }
+        );
+        
+        report.push({
+          bookingId: bookingId,
+          status: "UPDATED",
+          oldName: bookingCustomerName,
+          newName: masterCustomerName
+        });
+        updatedCount++;
+        
+      } catch (e) {
+        report.push({
+          bookingId: booking.BookingID,
+          status: "ERROR",
+          reason: e.message
+        });
+        errorCount++;
+        Logger.log("ERROR processing booking " + booking.BookingID + ": " + e.message);
+      }
+      
+    });
+    
+    Logger.log("=== REPAIR COMPLETE ===");
+    Logger.log("Updated: " + updatedCount);
+    Logger.log("Skipped: " + skippedCount);
+    Logger.log("Errors: " + errorCount);
+    Logger.log("=== REPAIR BOOKING CUSTOMER NAMES END ===");
+    
+    return {
+      success: true,
+      message: "Repair completed",
+      data: {
+        updated: updatedCount,
+        skipped: skippedCount,
+        errors: errorCount,
+        report: report
+      }
+    };
+    
+  } catch (e) {
+    Logger.log("FATAL ERROR in repairBookingCustomerNames: " + e.message);
+    return {
+      success: false,
+      message: "Repair failed: " + e.message,
+      data: null
+    };
+  }
+  
+}
+
+/**
+ * VALIDATION UTILITY - Validate Customer Master Integrity
+ * Checks for data integrity issues and returns detailed report
+ */
+function validateCustomerIntegrity() {
+  
+  try {
+    
+    Logger.log("=== VALIDATE CUSTOMER INTEGRITY START ===");
+    
+    const customers = getAll(APP.SHEETS.CUSTOMERS);
+    const bookings = getAll(APP.SHEETS.BOOKINGS);
+    
+    Logger.log("Total Customers: " + customers.length);
+    Logger.log("Total Bookings: " + bookings.length);
+    
+    const issues = {
+      duplicateMobiles: [],
+      duplicateCustomerIds: [],
+      sameMobileDifferentNames: [],
+      bookingsWithoutCustomerId: [],
+      bookingsMissingCustomer: [],
+      customerIdsNotInMaster: []
+    };
+    
+    // CHECK 1: Duplicate Mobile Numbers in Customer Master
+    const mobileMap = {};
+    customers.forEach(function(customer) {
+      const mobile = normalizeMobile(customer.Mobile);
+      if (mobile) {
+        if (mobileMap[mobile]) {
+          mobileMap[mobile].push(customer.CustomerID);
+        } else {
+          mobileMap[mobile] = [customer.CustomerID];
+        }
+      }
+    });
+    
+    for (var mobile in mobileMap) {
+      if (mobileMap[mobile].length > 1) {
+        issues.duplicateMobiles.push({
+          mobile: mobile,
+          customerIds: mobileMap[mobile]
+        });
+      }
+    }
+    
+    // CHECK 2: Duplicate CustomerIDs in Customer Master
+    const customerIdMap = {};
+    customers.forEach(function(customer) {
+      const id = customer.CustomerID;
+      if (customerIdMap[id]) {
+        customerIdMap[id]++;
+      } else {
+        customerIdMap[id] = 1;
+      }
+    });
+    
+    for (var id in customerIdMap) {
+      if (customerIdMap[id] > 1) {
+        issues.duplicateCustomerIds.push({
+          customerId: id,
+          count: customerIdMap[id]
+        });
+      }
+    }
+    
+    // CHECK 3: Same Mobile with Different Names in Bookings
+    const bookingMobileNames = {};
+    bookings.forEach(function(booking) {
+      const mobile = normalizeMobile(booking.Mobile);
+      const name = String(booking.CustomerName || '').trim();
+      
+      if (mobile && name) {
+        if (!bookingMobileNames[mobile]) {
+          bookingMobileNames[mobile] = {};
+        }
+        if (!bookingMobileNames[mobile][name]) {
+          bookingMobileNames[mobile][name] = [];
+        }
+        bookingMobileNames[mobile][name].push(booking.BookingID);
+      }
+    });
+    
+    for (var mobile in bookingMobileNames) {
+      var names = Object.keys(bookingMobileNames[mobile]);
+      if (names.length > 1) {
+        issues.sameMobileDifferentNames.push({
+          mobile: mobile,
+          names: names,
+          bookingIds: bookingMobileNames[mobile]
+        });
+      }
+    }
+    
+    // CHECK 4: Bookings without CustomerID
+    bookings.forEach(function(booking) {
+      if (!booking.CustomerID || String(booking.CustomerID).trim() === '') {
+        issues.bookingsWithoutCustomerId.push({
+          bookingId: booking.BookingID,
+          bookingNo: booking.BookingNo,
+          customerName: booking.CustomerName,
+          mobile: booking.Mobile
+        });
+      }
+    });
+    
+    // CHECK 5: Bookings referencing missing customers
+    const customerIds = customers.map(function(c) { return c.CustomerID; });
+    
+    bookings.forEach(function(booking) {
+      const customerId = booking.CustomerID;
+      if (customerId && customerIds.indexOf(customerId) === -1) {
+        issues.bookingsMissingCustomer.push({
+          bookingId: booking.BookingID,
+          bookingNo: booking.BookingNo,
+          customerId: customerId,
+          customerName: booking.CustomerName
+        });
+      }
+    });
+    
+    // CHECK 6: CustomerIDs in bookings not in Customer Master
+    const uniqueBookingCustomerIds = {};
+    bookings.forEach(function(booking) {
+      if (booking.CustomerID) {
+        uniqueBookingCustomerIds[booking.CustomerID] = true;
+      }
+    });
+    
+    for (var bookingCustId in uniqueBookingCustomerIds) {
+      if (customerIds.indexOf(bookingCustId) === -1) {
+        issues.customerIdsNotInMaster.push(bookingCustId);
+      }
+    }
+    
+    // Calculate totals
+    const totalIssues = 
+      issues.duplicateMobiles.length +
+      issues.duplicateCustomerIds.length +
+      issues.sameMobileDifferentNames.length +
+      issues.bookingsWithoutCustomerId.length +
+      issues.bookingsMissingCustomer.length +
+      issues.customerIdsNotInMaster.length;
+    
+    Logger.log("=== VALIDATION RESULTS ===");
+    Logger.log("Duplicate Mobiles: " + issues.duplicateMobiles.length);
+    Logger.log("Duplicate CustomerIDs: " + issues.duplicateCustomerIds.length);
+    Logger.log("Same Mobile Different Names: " + issues.sameMobileDifferentNames.length);
+    Logger.log("Bookings without CustomerID: " + issues.bookingsWithoutCustomerId.length);
+    Logger.log("Bookings Missing Customer: " + issues.bookingsMissingCustomer.length);
+    Logger.log("CustomerIDs Not in Master: " + issues.customerIdsNotInMaster.length);
+    Logger.log("Total Issues: " + totalIssues);
+    Logger.log("=== VALIDATE CUSTOMER INTEGRITY END ===");
+    
+    return {
+      success: true,
+      message: totalIssues === 0 ? "No integrity issues found" : totalIssues + " integrity issues found",
+      data: {
+        totalIssues: totalIssues,
+        issues: issues,
+        summary: {
+          duplicateMobiles: issues.duplicateMobiles.length,
+          duplicateCustomerIds: issues.duplicateCustomerIds.length,
+          sameMobileDifferentNames: issues.sameMobileDifferentNames.length,
+          bookingsWithoutCustomerId: issues.bookingsWithoutCustomerId.length,
+          bookingsMissingCustomer: issues.bookingsMissingCustomer.length,
+          customerIdsNotInMaster: issues.customerIdsNotInMaster.length
+        }
+      }
+    };
+    
+  } catch (e) {
+    Logger.log("FATAL ERROR in validateCustomerIntegrity: " + e.message);
+    return {
+      success: false,
+      message: "Validation failed: " + e.message,
+      data: null
+    };
+  }
+  
+}
+
+/**
+ * DIAGNOSTIC TEST FUNCTION - DELETE AFTER DEBUGGING
+ */
+function testCustomerDataDiagnostics() {
+  
+  Logger.log("=== DIAGNOSTIC TEST START ===");
+  
+  // Test 1: Check Customers sheet
+  const customers = getAll(APP.SHEETS.CUSTOMERS);
+  Logger.log("TEST 1 - Customers in sheet: " + customers.length);
+  
+  if (customers.length > 0) {
+    Logger.log("First customer raw data:");
+    Logger.log(JSON.stringify(customers[0]));
+  } else {
+    Logger.log("ERROR: No customers found in Customers sheet!");
+  }
+  
+  // Test 2: Check Bookings sheet
+  const bookings = getAll(APP.SHEETS.BOOKINGS);
+  Logger.log("TEST 2 - Bookings in sheet: " + bookings.length);
+  
+  if (bookings.length > 0) {
+    Logger.log("First booking raw data:");
+    Logger.log(JSON.stringify(bookings[0]));
+  } else {
+    Logger.log("ERROR: No bookings found in Bookings sheet!");
+  }
+  
+  // Test 3: Call getCustomerList()
+  Logger.log("TEST 3 - Calling getCustomerList()");
+  const result = getCustomerList();
+  Logger.log("Result success: " + result.success);
+  
+  if (result.success) {
+    Logger.log("Result data length: " + (result.data ? result.data.length : 0));
+    if (result.data && result.data.length > 0) {
+      Logger.log("First customer in result:");
+      Logger.log(JSON.stringify(result.data[0]));
+    } else {
+      Logger.log("ERROR: getCustomerList returned empty array!");
+    }
+  } else {
+    Logger.log("ERROR: getCustomerList failed: " + result.message);
+  }
+  
+  // Test 4: Call getCustomerDashboardStats()
+  Logger.log("TEST 4 - Calling getCustomerDashboardStats()");
+  const statsResult = getCustomerDashboardStats();
+  Logger.log("Stats result success: " + statsResult.success);
+  
+  if (statsResult.success) {
+    Logger.log("Dashboard stats:");
+    Logger.log(JSON.stringify(statsResult.data));
+  } else {
+    Logger.log("ERROR: getCustomerDashboardStats failed: " + statsResult.message);
+  }
+  
+  Logger.log("=== DIAGNOSTIC TEST END ===");
+  
+}
+
+/**
+ * Get customer list with calculated statistics
+ */
+function getCustomerList() {
+  
+  try {
+    
+    Logger.log("=== GET CUSTOMER LIST START ===");
+    
+    const customers = getAll(APP.SHEETS.CUSTOMERS);
+    const bookings = getAll(APP.SHEETS.BOOKINGS);
+    
+    Logger.log("Customers loaded: " + customers.length);
+    Logger.log("Bookings loaded: " + bookings.length);
+    
+    if (customers.length === 0) {
+      Logger.log("WARNING: No customers found in Customers sheet");
+      return {
+        success: true,
+        message: "Success",
+        data: []
+      };
+    }
+    
+    const now = new Date();
+    
+    const customerList = customers.map(function(customer) {
+      
+      const customerId = customer.CustomerID;
+      const customerMobile = customer.Mobile;
+      
+      Logger.log("Processing customer: " + customerId + " - " + customer.CustomerName);
+      
+      // Match by CustomerID first, then by Mobile as fallback
+      const customerBookings = bookings.filter(function(b) {
+        const bookingCustomerId = String(b.CustomerID || '').trim();
+        const bookingMobile = String(b.Mobile || '').replace(/\D/g, '');
+        const custMobile = String(customerMobile || '').replace(/\D/g, '');
+        
+        // Match by CustomerID
+        if (bookingCustomerId && customerId) {
+          if (bookingCustomerId === String(customerId).trim()) {
+            return true;
+          }
+        }
+        
+        // Fallback: Match by Mobile (normalized)
+        if (bookingMobile && custMobile && bookingMobile.length === 10 && custMobile.length === 10) {
+          if (bookingMobile === custMobile) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
+      
+      const totalBookings = customerBookings.length;
+      
+      Logger.log("  Matched bookings: " + totalBookings);
+      
+      let completedEvents = 0;
+      let upcomingEvents = 0;
+      let totalRevenue = 0;
+      let pendingAmount = 0;
+      let lastEventDate = null;
+      let nextEventDate = null;
+      
+      customerBookings.forEach(function(booking) {
+        
+        const eventDate = booking.EventDate ? new Date(booking.EventDate) : null;
+        
+        if (eventDate) {
+          if (eventDate < now) {
+            completedEvents++;
+            if (!lastEventDate || eventDate > lastEventDate) {
+              lastEventDate = eventDate;
+            }
+          } else {
+            upcomingEvents++;
+            if (!nextEventDate || eventDate < nextEventDate) {
+              nextEventDate = eventDate;
+            }
+          }
+        }
+        
+        const budget = parseFloat(booking.Budget) || 0;
+        const advance = parseFloat(booking.AdvanceAmount) || 0;
+        const balance = parseFloat(booking.BalanceAmount) || 0;
+        
+        totalRevenue += budget;
+        pendingAmount += balance;
+        
+      });
+      
+      Logger.log("  Statistics - Bookings: " + totalBookings + ", Revenue: " + totalRevenue + ", Completed: " + completedEvents + ", Upcoming: " + upcomingEvents);
+      
+      return {
+        CustomerID: customer.CustomerID,
+        CustomerName: customer.CustomerName,
+        Mobile: customer.Mobile,
+        AlternateMobile: customer.AlternateMobile || '',
+        Email: customer.Email || '',
+        Address: customer.Address || '',
+        CustomerSince: customer.CustomerSince ? formatDate(new Date(customer.CustomerSince)) : '',
+        Status: customer.Status || 'Active',
+        TotalBookings: totalBookings,
+        CompletedEvents: completedEvents,
+        UpcomingEvents: upcomingEvents,
+        TotalRevenue: totalRevenue,
+        PendingAmount: pendingAmount,
+        LastEventDate: lastEventDate ? formatDate(lastEventDate) : '',
+        NextEventDate: nextEventDate ? formatDate(nextEventDate) : '',
+        AverageBookingValue: totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0
+      };
+      
+    });
+    
+    Logger.log("Total customers processed: " + customerList.length);
+    
+    // STEP 2: Log array before return
+    Logger.log("=== BEFORE RETURN ===");
+    Logger.log("typeof customerList: " + typeof customerList);
+    Logger.log("Array.isArray(customerList): " + Array.isArray(customerList));
+    Logger.log("customerList.length: " + customerList.length);
+    
+    if (customerList.length > 0) {
+      Logger.log("First customer object:");
+      try {
+        Logger.log(JSON.stringify(customerList[0]));
+      } catch (stringifyError) {
+        Logger.log("JSON.stringify FAILED for first customer: " + stringifyError.message);
+        Logger.log("Inspecting customer fields individually:");
+        var firstCustomer = customerList[0];
+        for (var key in firstCustomer) {
+          try {
+            var value = firstCustomer[key];
+            Logger.log("  " + key + " (" + typeof value + "): " + value);
+            JSON.stringify(value);
+          } catch (fieldError) {
+            Logger.log("  " + key + " CANNOT BE SERIALIZED: " + fieldError.message);
+          }
+        }
+      }
+    }
+    
+    Logger.log("=== CALLING success() ===");
+    var result = success(customerList);
+    Logger.log("=== AFTER success() ===");
+    Logger.log("result.success: " + result.success);
+    Logger.log("typeof result.data: " + typeof result.data);
+    Logger.log("Array.isArray(result.data): " + Array.isArray(result.data));
+    Logger.log("result.data.length: " + (result.data ? result.data.length : "NULL"));
+    
+    Logger.log("=== GET CUSTOMER LIST END ===");
+    
+    // FIX: Return object directly like booking module
+    return {
+      success: true,
+      message: "Success",
+      data: customerList
+    };
+    
+  } catch (e) {
+    
+    Logger.log("ERROR in getCustomerList: " + e.message);
+    Logger.log("Stack trace: " + e.stack);
+    return failure("Unable to load customers: " + e.message);
+    
+  }
+  
+}
+
+/**
+ * Get customer by ID with full details
+ */
+function getCustomerById(customerId) {
+  
+  try {
+    
+    Logger.log("Getting customer by ID: " + customerId);
+    
+    const customers = getAll(APP.SHEETS.CUSTOMERS);
+    const bookings = getAll(APP.SHEETS.BOOKINGS);
+    
+    const customer = customers.find(function(c) {
+      return String(c.CustomerID).trim() === String(customerId).trim();
+    });
+    
+    if (!customer) {
+      Logger.log("Customer not found: " + customerId);
+      return failure("Customer not found");
+    }
+    
+    const customerMobile = customer.Mobile;
+    
+    // Match by CustomerID or Mobile
+    const customerBookings = bookings.filter(function(b) {
+      const bookingCustomerId = String(b.CustomerID || '').trim();
+      const bookingMobile = String(b.Mobile || '').replace(/\D/g, '');
+      const custMobile = String(customerMobile || '').replace(/\D/g, '');
+      
+      if (bookingCustomerId && customerId) {
+        if (bookingCustomerId === String(customerId).trim()) {
+          return true;
+        }
+      }
+      
+      if (bookingMobile && custMobile && bookingMobile.length === 10 && custMobile.length === 10) {
+        if (bookingMobile === custMobile) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+    
+    Logger.log("Found " + customerBookings.length + " bookings for customer");
+    
+    const now = new Date();
+    
+    let completedEvents = 0;
+    let upcomingEvents = 0;
+    let cancelledEvents = 0;
+    let totalRevenue = 0;
+    let amountReceived = 0;
+    let pendingAmount = 0;
+    let lastEventDate = null;
+    let nextEventDate = null;
+    let lastPaymentDate = null;
+    
+    customerBookings.forEach(function(booking) {
+      
+      const eventDate = booking.EventDate ? new Date(booking.EventDate) : null;
+      const bookingStatus = (booking.BookingStatus || '').toLowerCase();
+      
+      if (bookingStatus === 'cancelled' || bookingStatus === 'canceled') {
+        cancelledEvents++;
+      } else if (eventDate) {
+        if (eventDate < now) {
+          completedEvents++;
+          if (!lastEventDate || eventDate > lastEventDate) {
+            lastEventDate = eventDate;
+          }
+        } else {
+          upcomingEvents++;
+          if (!nextEventDate || eventDate < nextEventDate) {
+            nextEventDate = eventDate;
+          }
+        }
+      }
+      
+      const budget = parseFloat(booking.Budget) || 0;
+      const advance = parseFloat(booking.AdvanceAmount) || 0;
+      const balance = parseFloat(booking.BalanceAmount) || 0;
+      
+      totalRevenue += budget;
+      amountReceived += advance;
+      pendingAmount += balance;
+      
+      if (advance > 0 && eventDate) {
+        if (!lastPaymentDate || eventDate > lastPaymentDate) {
+          lastPaymentDate = eventDate;
+        }
+      }
+      
+    });
+    
+    const totalBookings = customerBookings.length;
+    
+    return {
+      success: true,
+      message: "Success",
+      data: {
+        CustomerID: customer.CustomerID,
+        CustomerName: customer.CustomerName,
+        Mobile: customer.Mobile,
+        AlternateMobile: customer.AlternateMobile || '',
+        Email: customer.Email || '',
+        Address: customer.Address || '',
+        CustomerSince: customer.CustomerSince ? formatDate(new Date(customer.CustomerSince)) : '',
+        Status: customer.Status || 'Active',
+        TotalBookings: totalBookings,
+        CompletedEvents: completedEvents,
+        UpcomingEvents: upcomingEvents,
+        CancelledEvents: cancelledEvents,
+        TotalRevenue: totalRevenue,
+        AmountReceived: amountReceived,
+        PendingAmount: pendingAmount,
+        AverageBookingValue: totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0,
+        LastEventDate: lastEventDate ? formatDate(lastEventDate) : '',
+        NextEventDate: nextEventDate ? formatDate(nextEventDate) : '',
+        LastPaymentDate: lastPaymentDate ? formatDate(lastPaymentDate) : ''
+      }
+    };
+    
+  } catch (e) {
+    
+    Logger.log("ERROR in getCustomerById: " + e.message);
+    return failure("Unable to load customer: " + e.message);
+    
+  }
+  
+}
+
+/**
+ * Get customer booking history
+ */
+function getCustomerBookings(customerId) {
+  
+  try {
+    
+    Logger.log("Getting bookings for customer: " + customerId);
+    
+    const customers = getAll(APP.SHEETS.CUSTOMERS);
+    const bookings = getAll(APP.SHEETS.BOOKINGS);
+    
+    // Find customer to get mobile
+    const customer = customers.find(function(c) {
+      return String(c.CustomerID).trim() === String(customerId).trim();
+    });
+    
+    if (!customer) {
+      Logger.log("Customer not found for booking history: " + customerId);
+      return {
+        success: true,
+        message: "Success",
+        data: []
+      };
+    }
+    
+    const customerMobile = customer.Mobile;
+    
+    // Match by CustomerID or Mobile
+    const customerBookings = bookings.filter(function(b) {
+      const bookingCustomerId = String(b.CustomerID || '').trim();
+      const bookingMobile = String(b.Mobile || '').replace(/\D/g, '');
+      const custMobile = String(customerMobile || '').replace(/\D/g, '');
+      
+      if (bookingCustomerId && customerId) {
+        if (bookingCustomerId === String(customerId).trim()) {
+          return true;
+        }
+      }
+      
+      if (bookingMobile && custMobile && bookingMobile.length === 10 && custMobile.length === 10) {
+        if (bookingMobile === custMobile) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+    
+    Logger.log("Found " + customerBookings.length + " bookings");
+    
+    customerBookings.sort(function(a, b) {
+      const dateA = a.EventDate ? new Date(a.EventDate) : new Date(0);
+      const dateB = b.EventDate ? new Date(b.EventDate) : new Date(0);
+      return dateB - dateA;
+    });
+    
+    const formattedBookings = customerBookings.map(function(booking) {
+      const budget = Number(booking.Budget || 0);
+      const advanceAmount = Number(booking.AdvanceAmount || 0);
+      const balanceAmount = Number(booking.BalanceAmount || 0);
+      
+      return {
+        BookingID: booking.BookingID,
+        BookingNo: booking.BookingNo,
+        CustomerName: booking.CustomerName,
+        Mobile: booking.Mobile,
+        EventType: booking.EventType,
+        EventDate: booking.EventDate ? formatDate(new Date(booking.EventDate)) : '',
+        EventTime: booking.EventTime,
+        Venue: booking.Venue,
+        Budget: (isFinite(budget) && !isNaN(budget)) ? budget : 0,
+        AdvanceAmount: (isFinite(advanceAmount) && !isNaN(advanceAmount)) ? advanceAmount : 0,
+        BalanceAmount: (isFinite(balanceAmount) && !isNaN(balanceAmount)) ? balanceAmount : 0,
+        BookingStatus: booking.BookingStatus,
+        PaymentStatus: booking.PaymentStatus,
+        Requirement: booking.Requirement,
+        Remarks: booking.Remarks
+      };
+    });
+    
+    return {
+      success: true,
+      message: "Success",
+      data: formattedBookings
+    };
+    
+  } catch (e) {
+    
+    Logger.log("ERROR in getCustomerBookings: " + e.message);
+    return failure("Unable to load customer bookings: " + e.message);
+    
+  }
+  
+}
+
+/**
+ * Update customer information
+ */
+function updateCustomer(customerId, data) {
+  
+  try {
+    
+    if (!customerId) {
+      return failure("Customer ID is required");
+    }
+    
+    if (!data.customerName || !data.customerName.trim()) {
+      return failure("Customer name is required");
+    }
+    
+    const updateData = {
+      CustomerName: data.customerName.trim()
+    };
+    
+    if (data.alternateMobile !== undefined) {
+      updateData.AlternateMobile = data.alternateMobile.trim();
+    }
+    
+    if (data.email !== undefined) {
+      updateData.Email = data.email.trim();
+    }
+    
+    if (data.address !== undefined) {
+      updateData.Address = data.address.trim();
+    }
+    
+    if (data.status !== undefined) {
+      updateData.Status = data.status.trim();
+    }
+    
+    update(
+      APP.SHEETS.CUSTOMERS,
+      "CustomerID",
+      customerId,
+      updateData
+    );
+    
+    if (data.customerName) {
+      const bookings = getAll(APP.SHEETS.BOOKINGS);
+      const customerBookings = bookings.filter(function(b) {
+        return String(b.CustomerID).trim() === String(customerId).trim();
+      });
+      
+      customerBookings.forEach(function(booking) {
+        update(
+          APP.SHEETS.BOOKINGS,
+          "BookingID",
+          booking.BookingID,
+          { CustomerName: data.customerName.trim() }
+        );
+      });
+    }
+    
+    return {
+      success: true,
+      message: "Customer updated successfully",
+      data: null
+    };
+    
+  } catch (e) {
+    
+    Logger.log("ERROR in updateCustomer: " + e.message);
+    return failure("Unable to update customer: " + e.message);
+    
+  }
+  
+}
+
+/**
+ * Get customer dashboard statistics
+ */
+function getCustomerDashboardStats() {
+  
+  try {
+    
+    Logger.log("=== GET CUSTOMER DASHBOARD STATS START ===");
+    
+    const customers = getAll(APP.SHEETS.CUSTOMERS);
+    const bookings = getAll(APP.SHEETS.BOOKINGS);
+    
+    Logger.log("Customers: " + customers.length + ", Bookings: " + bookings.length);
+    
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    let totalCustomers = customers.length;
+    let activeCustomers = 0;
+    let inactiveCustomers = 0;
+    let newThisMonth = 0;
+    let repeatCustomers = 0;
+    
+    customers.forEach(function(customer) {
+      
+      const status = (customer.Status || 'Active').toLowerCase();
+      
+      if (status === 'active') {
+        activeCustomers++;
+      } else {
+        inactiveCustomers++;
+      }
+      
+      const customerSince = customer.CustomerSince ? new Date(customer.CustomerSince) : null;
+      if (customerSince && customerSince >= startOfMonth) {
+        newThisMonth++;
+      }
+      
+      const customerId = customer.CustomerID;
+      const customerMobile = customer.Mobile;
+      
+      // Match by CustomerID or Mobile
+      const customerBookings = bookings.filter(function(b) {
+        const bookingCustomerId = String(b.CustomerID || '').trim();
+        const bookingMobile = String(b.Mobile || '').replace(/\D/g, '');
+        const custMobile = String(customerMobile || '').replace(/\D/g, '');
+        
+        if (bookingCustomerId && customerId) {
+          if (bookingCustomerId === String(customerId).trim()) {
+            return true;
+          }
+        }
+        
+        if (bookingMobile && custMobile && bookingMobile.length === 10 && custMobile.length === 10) {
+          if (bookingMobile === custMobile) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
+      
+      if (customerBookings.length > 1) {
+        repeatCustomers++;
+      }
+      
+    });
+    
+    Logger.log("Stats - Total: " + totalCustomers + ", Active: " + activeCustomers + ", New: " + newThisMonth + ", Repeat: " + repeatCustomers);
+    Logger.log("=== GET CUSTOMER DASHBOARD STATS END ===");
+    
+    return {
+      success: true,
+      message: "Success",
+      data: {
+        totalCustomers: totalCustomers,
+        activeCustomers: activeCustomers,
+        inactiveCustomers: inactiveCustomers,
+        newThisMonth: newThisMonth,
+        repeatCustomers: repeatCustomers
+      }
+    };
+    
+  } catch (e) {
+    
+    Logger.log("ERROR in getCustomerDashboardStats: " + e.message);
+    Logger.log("Stack trace: " + e.stack);
+    return failure("Unable to load customer stats: " + e.message);
     
   }
   

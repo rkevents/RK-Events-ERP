@@ -89,24 +89,31 @@
 
                             <div class="col-12">
 
-                                <div id="customerHistory" class="alert alert-info" style="display:none;">
-                                    <strong>Customer History</strong>
+                                <div id="customerHistory" class="alert alert-success" style="display:none;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <strong>✓ Existing Customer</strong>
+                                        <span id="repeatCustomerBadge" class="badge bg-primary" style="display:none;">🔁 Repeat Customer</span>
+                                    </div>
                                     <div class="row mt-2">
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             <small class="text-muted">Customer Since</small><br>
-                                            <span id="customerSince">-</span>
+                                            <strong id="customerSince">-</strong>
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             <small class="text-muted">Total Bookings</small><br>
-                                            <span id="totalBookings">0</span>
+                                            <strong id="historyTotalBookings">0</strong>
                                         </div>
                                         <div class="col-md-3">
                                             <small class="text-muted">Last Event Date</small><br>
-                                            <span id="lastEventDate">-</span>
+                                            <strong id="lastEventDate">-</strong>
                                         </div>
                                         <div class="col-md-3">
                                             <small class="text-muted">Previous Events</small><br>
-                                            <span id="previousEvents">-</span>
+                                            <strong id="previousEvents">-</strong>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <small class="text-muted">Outstanding</small><br>
+                                            <strong id="outstandingBalance" class="text-danger">₹0</strong>
                                         </div>
                                     </div>
                                 </div>
@@ -227,13 +234,28 @@
                             <div class="col-md-6">
 
                                 <label class="form-label">
-                                    Google Map Link
+                                    Booking Source <span class="text-danger">*</span>
                                 </label>
 
-                                <input
-                                    type="text"
-                                    id="googleMap"
-                                    class="form-control">
+                                <select
+                                    id="bookingSource"
+                                    class="form-select"
+                                    required>
+                                    <option value="">Select Booking Source</option>
+                                    <option value="Instagram">Instagram</option>
+                                    <option value="JustDial">JustDial</option>
+                                    <option value="Google Search">Google Search</option>
+                                    <option value="Google Business Profile">Google Business Profile</option>
+                                    <option value="Facebook">Facebook</option>
+                                    <option value="WhatsApp">WhatsApp</option>
+                                    <option value="Reference">Reference</option>
+                                    <option value="Walk-in">Walk-in</option>
+                                    <option value="Website">Website</option>
+                                    <option value="Existing Customer">Existing Customer</option>
+                                    <option value="Phone Call">Phone Call</option>
+                                    <option value="Advertisement">Advertisement</option>
+                                    <option value="Other">Other</option>
+                                </select>
 
                             </div>
 
@@ -258,7 +280,7 @@
                             <div class="col-md-4">
 
                                 <label class="form-label">
-                                    Advance Amount
+                                    Amount Received
                                 </label>
 
                                 <input
@@ -273,14 +295,15 @@
                             <div class="col-md-4">
 
                                 <label class="form-label">
-                                    Balance Amount
+                                    Outstanding Balance
                                 </label>
 
                                 <input
                                     type="number"
                                     id="balanceAmount"
                                     class="form-control"
-                                    readonly>
+                                    readonly
+                                    style="background-color: #f8f9fa;">
 
                             </div>
 
@@ -292,13 +315,63 @@
 
                                 <select
                                     id="paymentStatus"
-                                    class="form-select">
+                                    class="form-select"
+                                    onchange="handlePaymentStatusChange()">
 
                                     <option>Pending</option>
                                     <option>Partial</option>
                                     <option>Paid</option>
+                                    <option>Refunded</option>
 
                                 </select>
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Payment Date
+                                </label>
+
+                                <input
+                                    type="date"
+                                    id="paymentDate"
+                                    class="form-control">
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Payment Mode
+                                </label>
+
+                                <select
+                                    id="paymentMode"
+                                    class="form-select">
+
+                                    <option value="">Select Payment Mode</option>
+                                    <option>Cash</option>
+                                    <option>UPI</option>
+                                    <option>Bank Transfer</option>
+                                    <option>Cheque</option>
+                                    <option>Other</option>
+
+                                </select>
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <label class="form-label">
+                                    Payment Remarks
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="paymentRemarks"
+                                    class="form-control"
+                                    placeholder="Optional payment notes">
 
                             </div>
 
@@ -312,11 +385,13 @@
                                     id="bookingStatus"
                                     class="form-select">
 
-                                    <option>New</option>
+                                    <option>Pending</option>
                                     <option>Confirmed</option>
                                     <option>Shoot Completed</option>
                                     <option>Editing</option>
                                     <option>Delivered</option>
+                                    <option>Completed</option>
+                                    <option>Cancelled</option>
 
                                 </select>
 

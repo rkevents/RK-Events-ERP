@@ -145,7 +145,24 @@ function insert(sheetName, data) {
   }
 
   const row = headers.map(function (header) {
-    return data.hasOwnProperty(header) ? data[header] : "";
+    if (!data.hasOwnProperty(header)) {
+      return "";
+    }
+    
+    let value = data[header];
+    
+    if (header === "AdvanceAmount" || header === "AmountReceived" || 
+        header === "BalanceAmount" || header === "Budget") {
+      const numValue = Number(value);
+      if (!Number.isFinite(numValue)) {
+        Logger.log("WARNING: Invalid numeric value for " + header + ", using 0");
+        value = 0;
+      } else {
+        value = numValue;
+      }
+    }
+    
+    return value;
   });
 
   sheet.appendRow(row);
@@ -173,9 +190,24 @@ function insertMany(sheetName, dataList) {
 
     return headers.map(function (header) {
 
-      return item.hasOwnProperty(header)
-        ? item[header]
-        : "";
+      if (!item.hasOwnProperty(header)) {
+        return "";
+      }
+      
+      let value = item[header];
+      
+      if (header === "AdvanceAmount" || header === "AmountReceived" || 
+          header === "BalanceAmount" || header === "Budget") {
+        const numValue = Number(value);
+        if (!Number.isFinite(numValue)) {
+          Logger.log("WARNING: Invalid numeric value for " + header + ", using 0");
+          value = 0;
+        } else {
+          value = numValue;
+        }
+      }
+      
+      return value;
 
     });
 
@@ -222,7 +254,20 @@ function update(sheetName, idField, idValue, data) {
       headers.forEach(function (header, c) {
 
         if (data.hasOwnProperty(header)) {
-          values[r][c] = data[header];
+          let value = data[header];
+          
+          if (header === "AdvanceAmount" || header === "AmountReceived" || 
+              header === "BalanceAmount" || header === "Budget") {
+            const numValue = Number(value);
+            if (!Number.isFinite(numValue)) {
+              Logger.log("WARNING: Invalid numeric value for " + header + ", using 0");
+              value = 0;
+            } else {
+              value = numValue;
+            }
+          }
+          
+          values[r][c] = value;
         }
 
       });
