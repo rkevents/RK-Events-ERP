@@ -547,6 +547,31 @@ function clearBookingForm() {
         initialPaymentDate.value = today;
     }
     
+    const bookingAmountEdit = document.getElementById("bookingAmountEdit");
+    if (bookingAmountEdit) {
+        bookingAmountEdit.value = "";
+    }
+    
+    const advanceAmountDisplay = document.getElementById("advanceAmountDisplay");
+    if (advanceAmountDisplay) {
+        advanceAmountDisplay.value = "0";
+    }
+    
+    const alreadyReceivedDisplay = document.getElementById("alreadyReceivedDisplay");
+    if (alreadyReceivedDisplay) {
+        alreadyReceivedDisplay.value = "0";
+    }
+    
+    const balanceAmount = document.getElementById("balanceAmount");
+    if (balanceAmount) {
+        balanceAmount.value = "0";
+    }
+    
+    const paymentStatus = document.getElementById("paymentStatus");
+    if (paymentStatus) {
+        paymentStatus.value = "Pending";
+    }
+    
     showInitialPaymentSection();
 
 }
@@ -568,6 +593,38 @@ function hideInitialPaymentSection() {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });
+}
+
+/******************************************************
+ * RECALCULATE PAYMENT SUMMARY
+ ******************************************************/
+function recalculatePaymentSummary() {
+    const bookingAmount = Number(document.getElementById("bookingAmountEdit").value || 0);
+    const advanceAmount = Number(document.getElementById("advanceAmountDisplay").value || 0);
+    
+    const alreadyReceived = advanceAmount;
+    
+    const outstanding = Math.max(0, bookingAmount - alreadyReceived);
+    
+    let paymentStatus = "Pending";
+    if (alreadyReceived === 0) {
+        paymentStatus = "Pending";
+    } else if (alreadyReceived > 0 && alreadyReceived < bookingAmount) {
+        paymentStatus = "Partial";
+    } else if (alreadyReceived >= bookingAmount) {
+        paymentStatus = "Paid";
+    }
+    
+    document.getElementById("alreadyReceivedDisplay").value = alreadyReceived;
+    document.getElementById("balanceAmount").value = outstanding;
+    document.getElementById("paymentStatus").value = paymentStatus;
+    
+    document.getElementById("budget").value = bookingAmount;
+    
+    const advanceHidden = document.getElementById("advanceAmount");
+    if (advanceHidden) {
+        advanceHidden.value = alreadyReceived;
+    }
 }
 
 /******************************************************
@@ -630,12 +687,26 @@ function populateBookingForm(booking) {
     const advanceAmount = Number(booking.AdvanceAmount || 0);
     const balanceAmount = Number(booking.BalanceAmount || 0);
 
-    const bookingAmountDisplay = document.getElementById("bookingAmountDisplay");
-    if (bookingAmountDisplay) {
-        bookingAmountDisplay.value = budget;
+    const bookingAmountEdit = document.getElementById("bookingAmountEdit");
+    if (bookingAmountEdit) {
+        bookingAmountEdit.value = budget;
+    }
+    
+    const advanceAmountDisplay = document.getElementById("advanceAmountDisplay");
+    if (advanceAmountDisplay) {
+        advanceAmountDisplay.value = advanceAmount;
+    }
+    
+    const alreadyReceivedDisplay = document.getElementById("alreadyReceivedDisplay");
+    if (alreadyReceivedDisplay) {
+        alreadyReceivedDisplay.value = advanceAmount;
+    }
+    
+    const advanceHidden = document.getElementById("advanceAmount");
+    if (advanceHidden) {
+        advanceHidden.value = advanceAmount;
     }
 
-    document.getElementById("advanceAmount").value = advanceAmount;
     document.getElementById("balanceAmount").value = balanceAmount;
     document.getElementById("paymentStatus").value = booking.PaymentStatus || "Pending";
     document.getElementById("paymentDate").value = booking.PaymentDate || "";
@@ -649,6 +720,8 @@ function populateBookingForm(booking) {
         booking.Remarks || "";
     
     hideInitialPaymentSection();
+    
+    recalculatePaymentSummary();
 
 }
 
@@ -1084,17 +1157,14 @@ async function saveBooking() {
 
         venue: safeValue("venue"),
         requirement: safeValue("requirement"),
-        budget: safeNumber("budget"),
+        budget: 0,
         bookingSource: document.getElementById("bookingSource").value,
 
-        advanceAmount:
-            safeNumber("advanceAmount"),
+        advanceAmount: 0,
 
-        balanceAmount:
-            safeNumber("balanceAmount"),
+        balanceAmount: 0,
 
-        paymentStatus:
-            document.getElementById("paymentStatus").value,
+        paymentStatus: "Pending",
 
         paymentDate:
             document.getElementById("paymentDate").value,
@@ -1133,6 +1203,17 @@ async function saveBooking() {
 
         if (currentBookingId) {
 
+            const bookingAmountEdit = document.getElementById("bookingAmountEdit");
+            const budgetValue = bookingAmountEdit ? Number(bookingAmountEdit.value || 0) : safeNumber("budget");
+            
+            if (budgetValue <= 0) {
+                return showToast("Budget must be greater than zero", "danger");
+            }
+            
+            booking.budget = budgetValue;
+            booking.advanceAmount = Number(document.getElementById("advanceAmountDisplay").value || 0);
+            booking.balanceAmount = Number(document.getElementById("balanceAmount").value || 0);
+            booking.paymentStatus = document.getElementById("paymentStatus").value;
             booking.bookingId = currentBookingId;
 
             result = await callServer(
@@ -1142,6 +1223,13 @@ async function saveBooking() {
 
         } else {
 
+            const budgetValue = safeNumber("budget");
+            if (budgetValue <= 0) {
+                return showToast("Budget must be greater than zero", "danger");
+            }
+            
+            booking.budget = budgetValue;
+            
             const initialAdvance = Number(document.getElementById("initialAdvanceAmount").value || 0);
             const initialMode = document.getElementById("initialPaymentMode").value;
             const initialDate = document.getElementById("initialPaymentDate").value;

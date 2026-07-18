@@ -352,12 +352,27 @@
                             <div class="col-md-3">
 
                                 <label class="form-label">
-                                    Booking Amount
+                                    Booking Amount <span class="text-danger">*</span>
                                 </label>
 
                                 <input
                                     type="number"
-                                    id="bookingAmountDisplay"
+                                    id="bookingAmountEdit"
+                                    class="form-control"
+                                    onkeyup="recalculatePaymentSummary()"
+                                    onchange="recalculatePaymentSummary()">
+
+                            </div>
+
+                            <div class="col-md-3">
+
+                                <label class="form-label">
+                                    Advance Amount
+                                </label>
+
+                                <input
+                                    type="number"
+                                    id="advanceAmountDisplay"
                                     class="form-control"
                                     readonly
                                     style="background-color: #f8f9fa;">
@@ -372,7 +387,7 @@
 
                                 <input
                                     type="number"
-                                    id="advanceAmount"
+                                    id="alreadyReceivedDisplay"
                                     class="form-control"
                                     readonly
                                     style="background-color: #f8f9fa;">
@@ -531,6 +546,7 @@
                             </div>
 
                             <!-- Hidden fields to preserve existing functionality -->
+                            <input type="hidden" id="advanceAmount">
                             <input type="hidden" id="paymentDate">
                             <input type="hidden" id="paymentMode">
                             <input type="hidden" id="paymentRemarks">
