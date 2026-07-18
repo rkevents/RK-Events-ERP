@@ -536,7 +536,19 @@ function clearBookingForm() {
     
     const today = new Date().toISOString().split('T')[0];
     document.getElementById("paymentDate").value = today;
+    
+    const newPaymentDate = document.getElementById("newPaymentDate");
+    if (newPaymentDate) {
+        newPaymentDate.value = today;
+    }
 
+}
+
+/******************************************************
+ * PHASE 2 MESSAGE (PLACEHOLDER)
+ ******************************************************/
+function showPhase2Message() {
+    showToast("Payment Module will be implemented in Phase 2.", "info");
 }
 
 /******************************************************
@@ -591,6 +603,11 @@ function populateBookingForm(booking) {
     const budget = Number(booking.Budget || 0);
     const advanceAmount = Number(booking.AdvanceAmount || 0);
     const balanceAmount = Number(booking.BalanceAmount || 0);
+
+    const bookingAmountDisplay = document.getElementById("bookingAmountDisplay");
+    if (bookingAmountDisplay) {
+        bookingAmountDisplay.value = budget;
+    }
 
     document.getElementById("advanceAmount").value = advanceAmount;
     document.getElementById("balanceAmount").value = balanceAmount;

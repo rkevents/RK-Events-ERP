@@ -277,22 +277,42 @@
 
                         <div class="row g-3">
 
-                            <div class="col-md-4">
+                            <!-- Payment Summary (Read Only) -->
+                            <div class="col-12">
+                                <h6 class="mb-3">Payment Summary</h6>
+                            </div>
+
+                            <div class="col-md-3">
 
                                 <label class="form-label">
-                                    Amount Received
+                                    Booking Amount
+                                </label>
+
+                                <input
+                                    type="number"
+                                    id="bookingAmountDisplay"
+                                    class="form-control"
+                                    readonly
+                                    style="background-color: #f8f9fa;">
+
+                            </div>
+
+                            <div class="col-md-3">
+
+                                <label class="form-label">
+                                    Already Received
                                 </label>
 
                                 <input
                                     type="number"
                                     id="advanceAmount"
                                     class="form-control"
-                                    onkeyup="calculateBalance()"
-                                    onchange="calculateBalance()">
+                                    readonly
+                                    style="background-color: #f8f9fa;">
 
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-md-3">
 
                                 <label class="form-label">
                                     Outstanding Balance
@@ -307,73 +327,146 @@
 
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-md-3">
 
                                 <label class="form-label">
                                     Payment Status
                                 </label>
 
-                                <select
+                                <input
+                                    type="text"
                                     id="paymentStatus"
-                                    class="form-select"
-                                    onchange="handlePaymentStatusChange()">
-
-                                    <option>Pending</option>
-                                    <option>Partial</option>
-                                    <option>Paid</option>
-                                    <option>Refunded</option>
-
-                                </select>
+                                    class="form-control"
+                                    readonly
+                                    style="background-color: #f8f9fa;">
 
                             </div>
 
-                            <div class="col-md-4">
+                            <!-- Receive New Payment Section -->
+                            <div class="col-12 mt-4">
+                                <h6 class="mb-3">Receive New Payment</h6>
+                            </div>
+
+                            <div class="col-md-3">
 
                                 <label class="form-label">
-                                    Payment Date
+                                    Payment Amount <span class="text-danger">*</span>
+                                </label>
+
+                                <input
+                                    type="number"
+                                    id="newPaymentAmount"
+                                    class="form-control"
+                                    placeholder="Enter amount">
+
+                            </div>
+
+                            <div class="col-md-3">
+
+                                <label class="form-label">
+                                    Payment Date <span class="text-danger">*</span>
                                 </label>
 
                                 <input
                                     type="date"
-                                    id="paymentDate"
+                                    id="newPaymentDate"
                                     class="form-control">
 
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-md-3">
 
                                 <label class="form-label">
-                                    Payment Mode
+                                    Payment Mode <span class="text-danger">*</span>
                                 </label>
 
                                 <select
-                                    id="paymentMode"
+                                    id="newPaymentMode"
                                     class="form-select">
 
-                                    <option value="">Select Payment Mode</option>
+                                    <option value="">Select Mode</option>
                                     <option>Cash</option>
                                     <option>UPI</option>
                                     <option>Bank Transfer</option>
+                                    <option>Card</option>
                                     <option>Cheque</option>
-                                    <option>Other</option>
 
                                 </select>
 
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-md-3">
 
                                 <label class="form-label">
-                                    Payment Remarks
+                                    Reference Number
                                 </label>
 
                                 <input
                                     type="text"
-                                    id="paymentRemarks"
+                                    id="newPaymentReference"
                                     class="form-control"
-                                    placeholder="Optional payment notes">
+                                    placeholder="Optional">
 
                             </div>
+
+                            <div class="col-md-10">
+
+                                <label class="form-label">
+                                    Remarks
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="newPaymentRemarks"
+                                    class="form-control"
+                                    placeholder="Optional notes">
+
+                            </div>
+
+                            <div class="col-md-2">
+
+                                <label class="form-label">
+                                    &nbsp;
+                                </label>
+
+                                <button
+                                    type="button"
+                                    class="btn btn-success w-100"
+                                    onclick="showPhase2Message()">
+                                    <i class="bi bi-plus-circle"></i> Add Payment
+                                </button>
+
+                            </div>
+
+                            <!-- Payment History Placeholder -->
+                            <div class="col-12 mt-4">
+                                <h6 class="mb-3">Payment History</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Date</th>
+                                                <th class="text-end">Amount</th>
+                                                <th>Mode</th>
+                                                <th>Reference</th>
+                                                <th>Remarks</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="paymentHistoryTable">
+                                            <tr>
+                                                <td colspan="5" class="text-center text-muted py-3">
+                                                    No payment history available
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Hidden fields to preserve existing functionality -->
+                            <input type="hidden" id="paymentDate">
+                            <input type="hidden" id="paymentMode">
+                            <input type="hidden" id="paymentRemarks">
 
                             <div class="col-md-6">
 
